@@ -1,0 +1,68 @@
+<div class="flex h-screen bg-[#f8f6f7]" style="font-family: 'Be Vietnam Pro', sans-serif">
+  <!-- Sidebar -->
+  <aside [class]="'bg-white border-r border-[#E1E5F2] transition-all duration-300 flex flex-col ' + (sidebarOpen ? 'w-64' : 'w-20')">
+    <!-- Logo -->
+    <div class="flex items-center gap-3 px-6 py-6 border-b border-[#E1E5F2]">
+      <div class="size-8 text-[#2CA58D] flex-shrink-0">
+        <svg fill="currentColor" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <path clip-rule="evenodd" d="M24 0.757355L47.2426 24L24 47.2426L0.757355 24L24 0.757355ZM21 35.7574V12.2426L9.24264 24L21 35.7574Z" fill-rule="evenodd" />
+        </svg>
+      </div>
+      <h2 *ngIf="sidebarOpen" class="text-[#333745] text-lg font-bold transition-opacity">Rural Rental</h2>
+    </div>
+
+    <!-- User Info -->
+    <div class="px-4 py-6 border-b border-[#E1E5F2]">
+      <div class="flex items-center gap-3">
+        <div class="size-12 bg-gradient-to-br from-[#2CA58D] to-[#2ba692] rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+          {{userName.charAt(0)}}
+        </div>
+        <div *ngIf="sidebarOpen" class="flex-1 min-w-0">
+          <p class="text-[#333745] font-bold text-sm truncate">{{userName}}</p>
+          <p class="text-[#333745]/60 text-xs truncate">{{userType}}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Menu -->
+    <nav class="flex-1 px-3 py-4">
+      <ul class="space-y-1">
+        <li *ngFor="let item of menuItems">
+          <a 
+            [routerLink]="item.route"
+            [class]="'flex items-center gap-3 px-3 py-3 rounded-lg transition-all hover:bg-[#2CA58D]/10 relative ' + (isActiveRoute(item.route) ? 'bg-[#2CA58D]/10 text-[#2CA58D]' : 'text-[#333745]/70 hover:text-[#2CA58D]')"
+          >
+            <span class="material-symbols-outlined text-2xl">{{item.icon}}</span>
+            <span *ngIf="sidebarOpen" class="font-semibold text-sm flex-1">{{item.label}}</span>
+            <span *ngIf="sidebarOpen && item.badge" class="bg-[#AA4465] text-white text-xs px-2 py-0.5 rounded-full font-bold">
+              {{item.badge}}
+            </span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Footer Actions -->
+    <div class="px-3 py-4 border-t border-[#E1E5F2] space-y-2">
+      <button 
+        (click)="toggleSidebar()"
+        class="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-[#333745]/70 hover:bg-[#E1E5F2] hover:text-[#333745] transition-all"
+      >
+        <span class="material-symbols-outlined text-2xl">{{sidebarOpen ? 'menu_open' : 'menu'}}</span>
+        <span *ngIf="sidebarOpen" class="font-semibold text-sm">Contraer</span>
+      </button>
+      <button 
+        (click)="logout()"
+        class="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-[#AA4465] hover:bg-[#AA4465]/10 transition-all"
+      >
+        <span class="material-symbols-outlined text-2xl">logout</span>
+        <span *ngIf="sidebarOpen" class="font-semibold text-sm">Cerrar Sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 overflow-auto">
+    <router-outlet></router-outlet>
+  </main>
+</div>

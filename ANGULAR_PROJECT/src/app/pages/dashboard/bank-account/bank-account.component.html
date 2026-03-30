@@ -1,0 +1,227 @@
+<div class="p-8" style="font-family: 'Be Vietnam Pro', sans-serif">
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="text-3xl font-black text-[#333745] mb-2">Datos Bancarios 💳</h1>
+      <p class="text-[#333745]/60">Gestiona tus cuentas bancarias para recibir pagos</p>
+    </div>
+    <button
+      (click)="openAddModal()"
+      class="flex items-center gap-2 px-6 py-3 bg-[#2CA58D] text-white rounded-lg font-bold hover:bg-[#2CA58D]/90 transition-all shadow-lg shadow-[#2CA58D]/20"
+    >
+      <span class="material-symbols-outlined">add</span>
+      <span>Añadir Cuenta</span>
+    </button>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="accounts.length === 0" class="text-center py-16">
+    <div class="size-32 mx-auto mb-6 bg-[#E1E5F2] rounded-full flex items-center justify-center">
+      <span class="material-symbols-outlined text-6xl text-[#333745]/30">account_balance</span>
+    </div>
+    <h2 class="text-2xl font-bold text-[#333745] mb-2">No tienes cuentas bancarias</h2>
+    <p class="text-[#333745]/60 mb-6 max-w-md mx-auto">
+      Añade una cuenta bancaria para poder recibir pagos de tus reservas como propietario
+    </p>
+    <button
+      (click)="openAddModal()"
+      class="inline-flex items-center gap-2 px-6 py-3 bg-[#2CA58D] text-white rounded-lg font-bold hover:bg-[#2CA58D]/90 transition-all"
+    >
+      <span class="material-symbols-outlined">add</span>
+      <span>Añadir Primera Cuenta</span>
+    </button>
+  </div>
+
+  <!-- Accounts List -->
+  <div *ngIf="accounts.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div 
+      *ngFor="let account of accounts"
+      class="bg-white rounded-xl p-6 border-2 transition-all hover:shadow-lg"
+      [class.border-[#2CA58D]]="account.isPrimary"
+      [class.border-[#E1E5F2]]="!account.isPrimary"
+    >
+      <!-- Primary Badge -->
+      <div class="flex items-start justify-between mb-4">
+        <div *ngIf="account.isPrimary" class="flex items-center gap-1 bg-[#2CA58D] text-white text-xs px-3 py-1 rounded-full font-bold">
+          <span class="material-symbols-outlined text-sm">verified</span>
+          Principal
+        </div>
+        <div class="flex gap-2 ml-auto">
+          <button
+            (click)="openEditModal(account)"
+            class="p-2 hover:bg-[#E1E5F2] rounded-lg transition-colors text-[#333745]/60 hover:text-[#2CA58D]"
+          >
+            <span class="material-symbols-outlined text-xl">edit</span>
+          </button>
+          <button
+            (click)="deleteAccount(account.id)"
+            class="p-2 hover:bg-red-50 rounded-lg transition-colors text-[#333745]/60 hover:text-red-600"
+          >
+            <span class="material-symbols-outlined text-xl">delete</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Bank Info -->
+      <div class="mb-6">
+        <p class="text-2xl font-black text-[#333745] mb-2">{{account.bankName}}</p>
+        <p class="text-lg font-mono text-[#333745]/60">{{formatAccountNumber(account.accountNumber)}}</p>
+      </div>
+
+      <!-- Account Details -->
+      <div class="space-y-3 mb-6">
+        <div class="flex justify-between items-center">
+          <span class="text-sm text-[#333745]/60">Tipo de cuenta:</span>
+          <span class="text-sm font-semibold text-[#333745]">{{getAccountTypeLabel(account.accountType)}}</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-sm text-[#333745]/60">Balance:</span>
+          <span class="text-sm font-bold text-[#2CA58D]">{{formatBalance(account.balance)}}</span>
+        </div>
+      </div>
+
+      <!-- Set as Primary -->
+      <button
+        *ngIf="!account.isPrimary"
+        (click)="setPrimaryAccount(account.id)"
+        class="w-full py-2 border border-[#2CA58D] text-[#2CA58D] rounded-lg font-semibold hover:bg-[#2CA58D] hover:text-white transition-all"
+      >
+        Establecer como principal
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div *ngIf="showAddModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fade-in">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up">
+    <!-- Modal Header -->
+    <div class="sticky top-0 bg-white border-b border-[#E1E5F2] px-6 py-4 flex items-center justify-between rounded-t-2xl">
+      <h2 class="text-2xl font-bold text-[#333745]">
+        {{editingAccountId ? 'Editar Cuenta Bancaria' : 'Añadir Cuenta Bancaria'}}
+      </h2>
+      <button
+        (click)="closeModal()"
+        class="p-2 hover:bg-[#E1E5F2] rounded-lg transition-colors"
+      >
+        <span class="material-symbols-outlined text-2xl text-[#333745]">close</span>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <form class="p-6 space-y-5" (ngSubmit)="onSubmit()">
+      <!-- Account Number -->
+      <div>
+        <label class="block text-sm font-bold text-[#333745] mb-2">
+          Número de Cuenta *
+        </label>
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[#333745]/40">credit_card</span>
+          <input
+            [class]="'w-full pl-11 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#2CA58D]/20 focus:border-[#2CA58D] outline-none transition-all ' + (errors.accountNumber ? 'border-red-500' : 'border-[#E1E5F2]')"
+            placeholder="ES00 0000 0000 0000 0000 0000"
+            type="text"
+            name="accountNumber"
+            [(ngModel)]="formData.accountNumber"
+            (ngModelChange)="onInputChange('accountNumber')"
+          />
+        </div>
+        <p *ngIf="errors.accountNumber" class="text-red-500 text-xs mt-1">{{errors.accountNumber}}</p>
+      </div>
+
+      <!-- Bank Name -->
+      <div>
+        <label class="block text-sm font-bold text-[#333745] mb-2">
+          Nombre del Banco *
+        </label>
+        <select
+          [class]="'w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#2CA58D]/20 focus:border-[#2CA58D] outline-none transition-all ' + (errors.bankName ? 'border-red-500' : 'border-[#E1E5F2]')"
+          name="bankName"
+          [(ngModel)]="formData.bankName"
+          (ngModelChange)="onInputChange('bankName')"
+        >
+          <option value="">Selecciona un banco</option>
+          <option *ngFor="let bank of popularBanks" [value]="bank">{{bank}}</option>
+        </select>
+        <p *ngIf="errors.bankName" class="text-red-500 text-xs mt-1">{{errors.bankName}}</p>
+      </div>
+
+      <!-- Account Type -->
+      <div>
+        <label class="block text-sm font-bold text-[#333745] mb-2">
+          Tipo de Cuenta *
+        </label>
+        <div class="grid grid-cols-2 gap-3">
+          <label 
+            *ngFor="let type of accountTypes"
+            class="relative cursor-pointer"
+          >
+            <input
+              type="radio"
+              name="accountType"
+              [value]="type.value"
+              [(ngModel)]="formData.accountType"
+              class="peer sr-only"
+            />
+            <div class="p-4 border-2 rounded-lg transition-all peer-checked:border-[#2CA58D] peer-checked:bg-[#2CA58D]/5 border-[#E1E5F2] hover:border-[#2CA58D]/50">
+              <p class="font-semibold text-sm text-[#333745]">{{type.label}}</p>
+            </div>
+          </label>
+        </div>
+        <p *ngIf="errors.accountType" class="text-red-500 text-xs mt-1">{{errors.accountType}}</p>
+      </div>
+
+      <!-- Balance -->
+      <div>
+        <label class="block text-sm font-bold text-[#333745] mb-2">
+          Balance Inicial *
+        </label>
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[#333745]/60 font-semibold">€</span>
+          <input
+            [class]="'w-full pl-8 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#2CA58D]/20 focus:border-[#2CA58D] outline-none transition-all ' + (errors.balance ? 'border-red-500' : 'border-[#E1E5F2]')"
+            placeholder="0.00"
+            type="number"
+            step="0.01"
+            name="balance"
+            [(ngModel)]="formData.balance"
+            (ngModelChange)="onInputChange('balance')"
+          />
+        </div>
+        <p *ngIf="errors.balance" class="text-red-500 text-xs mt-1">{{errors.balance}}</p>
+        <p class="text-xs text-[#333745]/60 mt-1">Este es solo un registro, no afecta tu cuenta real</p>
+      </div>
+
+      <!-- Info Box -->
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div class="flex gap-3">
+          <span class="material-symbols-outlined text-blue-600">info</span>
+          <div class="flex-1">
+            <p class="text-sm text-blue-800 font-semibold mb-1">Información de seguridad</p>
+            <p class="text-xs text-blue-700">
+              Tus datos bancarios están protegidos y solo se usan para procesar pagos de tus propiedades.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex gap-3 pt-4">
+        <button
+          type="button"
+          (click)="closeModal()"
+          class="flex-1 py-3 border border-[#E1E5F2] rounded-lg font-semibold text-[#333745] hover:bg-[#E1E5F2] transition-all"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          [disabled]="isLoading"
+          class="flex-1 py-3 bg-[#2CA58D] text-white rounded-lg font-bold hover:bg-[#2CA58D]/90 transition-all shadow-lg shadow-[#2CA58D]/20 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {{isLoading ? 'Guardando...' : editingAccountId ? 'Actualizar' : 'Guardar Cuenta'}}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

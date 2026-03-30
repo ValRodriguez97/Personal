@@ -1,0 +1,81 @@
+<div class="p-8" style="font-family: 'Be Vietnam Pro', sans-serif">
+  <!-- Header -->
+  <div class="mb-8">
+    <h1 class="text-3xl font-black text-[#333745] mb-2">Bienvenido de vuelta 👋</h1>
+    <p class="text-[#333745]/60">Aquí tienes un resumen de tu actividad</p>
+  </div>
+
+  <!-- Stats Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div *ngFor="let stat of stats" class="bg-white rounded-xl p-6 border border-[#E1E5F2] hover:shadow-lg transition-all">
+      <div class="flex items-start justify-between mb-4">
+        <div class="size-12 bg-[#2CA58D]/10 rounded-lg flex items-center justify-center text-[#2CA58D]">
+          <span class="material-symbols-outlined text-2xl">{{stat.icon}}</span>
+        </div>
+      </div>
+      <p class="text-2xl font-black text-[#333745] mb-1">{{stat.value}}</p>
+      <p class="text-sm text-[#333745]/60 mb-2">{{stat.label}}</p>
+      <p [class]="'text-xs font-semibold ' + (stat.isPositive ? 'text-green-600' : 'text-[#AA4465]')">
+        {{stat.change}}
+      </p>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="bg-white rounded-xl p-6 border border-[#E1E5F2] mb-8">
+    <h2 class="text-xl font-bold text-[#333745] mb-4">Acciones Rápidas</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <a 
+        routerLink="/dashboard/bank-account"
+        class="flex items-center gap-4 p-4 bg-gradient-to-br from-[#2CA58D] to-[#2ba692] rounded-lg text-white hover:shadow-lg transition-all group cursor-pointer"
+      >
+        <span class="material-symbols-outlined text-3xl">account_balance</span>
+        <div>
+          <p class="font-bold text-sm">Añadir Cuenta Bancaria</p>
+          <p class="text-xs text-white/80">Gestiona tus pagos</p>
+        </div>
+        <span class="material-symbols-outlined ml-auto group-hover:translate-x-1 transition-transform">arrow_forward</span>
+      </a>
+
+      <a 
+        routerLink="/dashboard/become-owner"
+        class="flex items-center gap-4 p-4 bg-gradient-to-br from-[#AA4465] to-[#9a3a58] rounded-lg text-white hover:shadow-lg transition-all group cursor-pointer"
+      >
+        <span class="material-symbols-outlined text-3xl">verified_user</span>
+        <div>
+          <p class="font-bold text-sm">Volverse Propietario</p>
+          <p class="text-xs text-white/80">Publica tus propiedades</p>
+        </div>
+        <span class="material-symbols-outlined ml-auto group-hover:translate-x-1 transition-transform">arrow_forward</span>
+      </a>
+
+      <button 
+        class="flex items-center gap-4 p-4 bg-white border-2 border-[#E1E5F2] rounded-lg text-[#333745] hover:border-[#2CA58D] hover:bg-[#2CA58D]/5 transition-all group"
+      >
+        <span class="material-symbols-outlined text-3xl text-[#2CA58D]">search</span>
+        <div class="text-left">
+          <p class="font-bold text-sm">Buscar Propiedades</p>
+          <p class="text-xs text-[#333745]/60">Encuentra tu cabaña</p>
+        </div>
+        <span class="material-symbols-outlined ml-auto group-hover:translate-x-1 transition-transform text-[#2CA58D]">arrow_forward</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Activity Feed -->
+  <div class="bg-white rounded-xl p-6 border border-[#E1E5F2]">
+    <h2 class="text-xl font-bold text-[#333745] mb-4">Actividad Reciente</h2>
+    <div class="space-y-4">
+      <div *ngFor="let activity of recentActivity" class="flex items-start gap-4 p-4 hover:bg-[#f8f6f7] rounded-lg transition-all">
+        <div [class]="'size-10 rounded-full flex items-center justify-center bg-opacity-10 ' + activity.color" [style.background-color]="activity.color + '20'">
+          <span [class]="'material-symbols-outlined text-xl ' + activity.color">{{activity.icon}}</span>
+        </div>
+        <div class="flex-1">
+          <p class="text-sm font-semibold text-[#333745]">{{activity.action}}</p>
+          <p class="text-sm text-[#333745]/60">{{activity.property}}</p>
+        </div>
+        <span class="text-xs text-[#333745]/40">{{activity.time}}</span>
+      </div>
+    </div>
+  </div>
+</div>

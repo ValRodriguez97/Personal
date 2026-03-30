@@ -1,0 +1,322 @@
+<div class="p-8 max-w-6xl mx-auto" style="font-family: 'Inter', sans-serif">
+  <!-- Header -->
+  <div class="text-center mb-12">
+    <div class="size-20 mx-auto mb-4 bg-gradient-to-br from-[#2CA58D] to-[#2ba692] rounded-full flex items-center justify-center">
+      <span class="material-symbols-outlined text-4xl text-white">verified_user</span>
+    </div>
+    <h1 class="text-4xl font-black text-[#333745] mb-3">Conviértete en Propietario</h1>
+    <p class="text-lg text-[#333745]/60 max-w-2xl mx-auto">
+      Desbloquea todas las herramientas para publicar y gestionar tus propiedades rurales
+    </p>
+  </div>
+
+  <!-- Benefits Grid (Only show on step 1) -->
+  <div *ngIf="step === 1" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12 animate-fade-in">
+    <div *ngFor="let benefit of benefits" class="bg-white rounded-xl p-6 border border-[#E1E5F2] hover:border-[#2CA58D] hover:shadow-lg transition-all">
+      <div class="size-12 bg-[#2CA58D]/10 rounded-lg flex items-center justify-center text-[#2CA58D] mb-4">
+        <span class="material-symbols-outlined text-2xl">{{benefit.icon}}</span>
+      </div>
+      <h3 class="font-bold text-[#333745] mb-2">{{benefit.title}}</h3>
+      <p class="text-sm text-[#333745]/60">{{benefit.description}}</p>
+    </div>
+  </div>
+
+  <!-- Main Form Card -->
+  <div class="bg-white rounded-2xl shadow-xl border border-[#E1E5F2] overflow-hidden">
+    <!-- Progress Header -->
+    <div class="bg-gradient-to-r from-[#2CA58D] to-[#2ba692] p-6 text-white">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold">Proceso de Upgrade</h2>
+        <span class="text-sm font-semibold bg-white/20 px-4 py-1 rounded-full">Paso {{step}} de 3</span>
+      </div>
+      <!-- Progress Bar -->
+      <div class="w-full bg-white/20 h-2 rounded-full overflow-hidden">
+        <div 
+          class="bg-white h-2 rounded-full transition-all duration-500"
+          [style.width.%]="progressWidth"
+        ></div>
+      </div>
+      <p class="text-sm text-white/90 mt-3">{{stepTitle}}</p>
+    </div>
+
+    <!-- Form Steps -->
+    <form class="p-8" (ngSubmit)="onNext()">
+      <!-- Step 1: Motivation -->
+      <div *ngIf="step === 1" class="space-y-6 animate-slide-in">
+        <div>
+          <label class="block text-sm font-bold text-[#333745] mb-3">
+            ¿Por qué quieres convertirte en propietario? *
+          </label>
+          <div class="space-y-2">
+            <label 
+              *ngFor="let reason of reasons"
+              class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all hover:border-[#2CA58D]/50"
+              [class.border-[#2CA58D]]="formData.reason === reason.value"
+              [class.bg-[#2CA58D]/5]="formData.reason === reason.value"
+              [class.border-[#E1E5F2]]="formData.reason !== reason.value"
+            >
+              <input
+                type="radio"
+                name="reason"
+                [value]="reason.value"
+                [(ngModel)]="formData.reason"
+                (ngModelChange)="onInputChange('reason')"
+                class="sr-only"
+              />
+              <div class="flex-1">
+                <p class="font-semibold text-[#333745]">{{reason.label}}</p>
+              </div>
+              <span 
+                *ngIf="formData.reason === reason.value"
+                class="material-symbols-outlined text-[#2CA58D]"
+              >
+                check_circle
+              </span>
+            </label>
+          </div>
+          <p *ngIf="errors.reason" class="text-red-500 text-xs mt-2">{{errors.reason}}</p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-bold text-[#333745] mb-2">
+            ¿Cuántas propiedades planeas publicar? *
+          </label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[#333745]/40">home</span>
+            <input
+              [class]="'w-full pl-11 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#2CA58D]/20 focus:border-[#2CA58D] outline-none transition-all ' + (errors.propertyCount ? 'border-red-500' : 'border-[#E1E5F2]')"
+              placeholder="Ej: 3 propiedades"
+              type="number"
+              min="1"
+              name="propertyCount"
+              [(ngModel)]="formData.propertyCount"
+              (ngModelChange)="onInputChange('propertyCount')"
+            />
+          </div>
+          <p *ngIf="errors.propertyCount" class="text-red-500 text-xs mt-1">{{errors.propertyCount}}</p>
+          <p class="text-xs text-[#333745]/60 mt-2">
+            No te preocupes, puedes añadir más propiedades después
+          </p>
+        </div>
+      </div>
+
+      <!-- Step 2: Security Key -->
+      <div *ngIf="step === 2" class="space-y-6 animate-slide-in">
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div class="flex gap-3">
+            <span class="material-symbols-outlined text-blue-600">security</span>
+            <div class="flex-1">
+              <p class="text-sm font-bold text-blue-800 mb-1">¿Qué es la clave de seguridad?</p>
+              <p class="text-xs text-blue-700">
+                Esta clave adicional protege tu cuenta de propietario y te permite acceder a funciones exclusivas. 
+                Guárdala en un lugar seguro, la necesitarás para operaciones importantes.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-sm font-bold text-[#333745]">
+              Clave de Seguridad *
+            </label>
+            <button
+              type="button"
+              (click)="generateSecurityKey()"
+              class="text-xs font-bold text-[#2CA58D] hover:underline flex items-center gap-1"
+            >
+              <span class="material-symbols-outlined text-sm">auto_awesome</span>
+              Generar automáticamente
+            </button>
+          </div>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[#333745]/40">key</span>
+            <input
+              [class]="'w-full pl-11 pr-12 py-3 border rounded-lg focus:ring-2 focus:ring-[#2CA58D]/20 focus:border-[#2CA58D] outline-none transition-all font-mono ' + (errors.securityKey ? 'border-red-500' : 'border-[#E1E5F2]')"
+              placeholder="Mínimo 8 caracteres"
+              [type]="showSecurityKey ? 'text' : 'password'"
+              name="securityKey"
+              [(ngModel)]="formData.securityKey"
+              (ngModelChange)="onInputChange('securityKey')"
+            />
+            <button
+              type="button"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-[#333745]/40 hover:text-[#333745]/70"
+              (click)="toggleSecurityKeyVisibility()"
+            >
+              <span class="material-symbols-outlined text-xl">{{showSecurityKey ? 'visibility_off' : 'visibility'}}</span>
+            </button>
+          </div>
+          
+          <!-- Security Strength Indicator -->
+          <div *ngIf="formData.securityKey" class="mt-2">
+            <div class="flex items-center gap-2 mb-1">
+              <div class="flex-1 bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                <div 
+                  [class]="'h-full transition-all duration-300 ' + getSecurityStrength().color"
+                  [style.width.%]="getSecurityStrength().width"
+                ></div>
+              </div>
+              <span class="text-xs font-semibold" [class]="getSecurityStrength().color.replace('bg-', 'text-')">
+                {{getSecurityStrength().text}}
+              </span>
+            </div>
+          </div>
+          
+          <p *ngIf="errors.securityKey" class="text-red-500 text-xs mt-1">{{errors.securityKey}}</p>
+          <ul class="text-xs text-[#333745]/60 mt-2 space-y-1 ml-4">
+            <li class="flex items-center gap-2">
+              <span [class]="formData.securityKey.length >= 8 ? 'text-green-600' : 'text-gray-400'">•</span>
+              Al menos 8 caracteres
+            </li>
+            <li class="flex items-center gap-2">
+              <span [class]="/[A-Z]/.test(formData.securityKey) ? 'text-green-600' : 'text-gray-400'">•</span>
+              Una letra mayúscula
+            </li>
+            <li class="flex items-center gap-2">
+              <span [class]="/[0-9]/.test(formData.securityKey) ? 'text-green-600' : 'text-gray-400'">•</span>
+              Un número
+            </li>
+            <li class="flex items-center gap-2">
+              <span [class]="/[!@#$%^&*]/.test(formData.securityKey) ? 'text-green-600' : 'text-gray-400'">•</span>
+              Un carácter especial (!@#$%^&*)
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <label class="block text-sm font-bold text-[#333745] mb-2">
+            Confirmar Clave de Seguridad *
+          </label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[#333745]/40">lock</span>
+            <input
+              [class]="'w-full pl-11 pr-12 py-3 border rounded-lg focus:ring-2 focus:ring-[#2CA58D]/20 focus:border-[#2CA58D] outline-none transition-all font-mono ' + (errors.confirmSecurityKey ? 'border-red-500' : 'border-[#E1E5F2]')"
+              placeholder="Repite la clave"
+              [type]="showConfirmSecurityKey ? 'text' : 'password'"
+              name="confirmSecurityKey"
+              [(ngModel)]="formData.confirmSecurityKey"
+              (ngModelChange)="onInputChange('confirmSecurityKey')"
+            />
+            <button
+              type="button"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-[#333745]/40 hover:text-[#333745]/70"
+              (click)="toggleConfirmSecurityKeyVisibility()"
+            >
+              <span class="material-symbols-outlined text-xl">{{showConfirmSecurityKey ? 'visibility_off' : 'visibility'}}</span>
+            </button>
+          </div>
+          <p *ngIf="errors.confirmSecurityKey" class="text-red-500 text-xs mt-1">{{errors.confirmSecurityKey}}</p>
+        </div>
+      </div>
+
+      <!-- Step 3: Confirmation -->
+      <div *ngIf="step === 3" class="space-y-6 animate-slide-in">
+        <div class="bg-gradient-to-br from-[#2CA58D]/5 to-[#2ba692]/5 rounded-xl p-8 border-2 border-[#2CA58D]/20">
+          <div class="text-center mb-6">
+            <div class="size-16 mx-auto mb-4 bg-[#2CA58D] rounded-full flex items-center justify-center">
+              <span class="material-symbols-outlined text-3xl text-white">check_circle</span>
+            </div>
+            <h3 class="text-2xl font-black text-[#333745] mb-2">¡Todo listo!</h3>
+            <p class="text-[#333745]/60">Revisa tu información antes de confirmar</p>
+          </div>
+
+          <div class="bg-white rounded-lg p-6 space-y-4">
+            <div class="flex justify-between py-3 border-b border-[#E1E5F2]">
+              <span class="text-sm text-[#333745]/60">Razón:</span>
+              <span class="text-sm font-semibold text-[#333745]">
+                {{reasons.find(r => r.value === formData.reason)?.label}}
+              </span>
+            </div>
+            <div class="flex justify-between py-3 border-b border-[#E1E5F2]">
+              <span class="text-sm text-[#333745]/60">Propiedades iniciales:</span>
+              <span class="text-sm font-semibold text-[#333745]">{{formData.propertyCount}}</span>
+            </div>
+            <div class="flex justify-between py-3">
+              <span class="text-sm text-[#333745]/60">Clave de seguridad:</span>
+              <span class="text-sm font-semibold text-[#2CA58D] flex items-center gap-1">
+                <span class="material-symbols-outlined text-sm">check_circle</span>
+                Configurada
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div class="flex gap-3">
+            <span class="material-symbols-outlined text-yellow-600">warning</span>
+            <div class="flex-1">
+              <p class="text-sm font-bold text-yellow-800 mb-1">Importante</p>
+              <p class="text-xs text-yellow-700">
+                Guarda tu clave de seguridad en un lugar seguro. La necesitarás para:
+              </p>
+              <ul class="text-xs text-yellow-700 mt-2 ml-4 space-y-1">
+                <li>• Publicar nuevas propiedades</li>
+                <li>• Modificar precios y disponibilidad</li>
+                <li>• Gestionar reservas y pagos</li>
+                <li>• Acceder a funciones exclusivas de propietario</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3 p-4 border-2 rounded-lg" [class.border-red-500]="errors.agreeToTerms" [class.border-[#E1E5F2]]="!errors.agreeToTerms">
+          <input
+            type="checkbox"
+            id="agreeToTerms"
+            name="agreeToTerms"
+            [(ngModel)]="formData.agreeToTerms"
+            (ngModelChange)="onInputChange('agreeToTerms')"
+            class="size-5 rounded border-[#E1E5F2] text-[#2CA58D] focus:ring-[#2CA58D] mt-0.5"
+          />
+          <label for="agreeToTerms" class="text-sm text-[#333745] cursor-pointer">
+            Acepto los <a href="#" class="text-[#2CA58D] font-bold hover:underline">términos y condiciones</a> de propietario, 
+            incluyendo las <a href="#" class="text-[#2CA58D] font-bold hover:underline">políticas de pago</a> y 
+            <a href="#" class="text-[#2CA58D] font-bold hover:underline">responsabilidades</a> asociadas.
+          </label>
+        </div>
+        <p *ngIf="errors.agreeToTerms" class="text-red-500 text-xs">{{errors.agreeToTerms}}</p>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex gap-4 mt-8 pt-6 border-t border-[#E1E5F2]">
+        <button
+          *ngIf="step > 1"
+          type="button"
+          (click)="onBack()"
+          class="flex items-center justify-center gap-2 py-3 px-6 border-2 border-[#E1E5F2] rounded-lg text-[#333745] font-semibold hover:bg-[#E1E5F2] transition-all"
+        >
+          <span class="material-symbols-outlined">arrow_back</span>
+          <span>Atrás</span>
+        </button>
+        
+        <button
+          type="submit"
+          [disabled]="isLoading"
+          class="flex-1 bg-gradient-to-r from-[#2CA58D] to-[#2ba692] text-white font-bold py-4 rounded-lg transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span>
+            {{isLoading ? 'Procesando...' : step === 3 ? '🎉 Convertirme en Propietario' : 'Continuar'}}
+          </span>
+          <span class="material-symbols-outlined">{{step === 3 ? 'verified' : 'arrow_forward'}}</span>
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Bottom Trust Indicators -->
+  <div class="mt-8 flex flex-wrap justify-center gap-8 text-[#333745]/40 font-semibold text-xs uppercase tracking-widest">
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-lg">verified_user</span>
+      Proceso Seguro
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-lg">encrypted</span>
+      Datos Protegidos
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-lg">support_agent</span>
+      Soporte 24/7
+    </div>
+  </div>
+</div>
