@@ -1,6 +1,6 @@
 <div class="min-h-screen flex flex-col" style="background-color: var(--rhouses-background-light)">
-  <!-- Navbar -->
-  <app-navbar [isLoggedIn]="isLoggedIn"></app-navbar>
+  <!-- Navbar (lee estado de AuthService internamente) -->
+  <app-navbar></app-navbar>
 
   <!-- Hero Section -->
   <app-hero-section></app-hero-section>
@@ -15,7 +15,7 @@
 
       <!-- Layout con sidebar y contenido -->
       <div class="flex gap-8 relative">
-        <!-- Sidebar de filtros - Colapsable -->
+        <!-- Sidebar colapsable -->
         <div
           [ngClass]="{
             'w-80 opacity-100': isFilterOpen,
@@ -29,17 +29,13 @@
           ></app-filter-sidebar>
         </div>
 
-        <!-- Grid de casas - Se ajusta automáticamente -->
+        <!-- Grid principal -->
         <div class="flex-1 transition-all duration-300 ease-in-out">
-          <!-- Puedes cambiar las props para probar diferentes estados: -->
-          <!-- <app-house-grid [loading]="true"></app-house-grid> -->
-          <!-- <app-house-grid [empty]="true"></app-house-grid> -->
           <app-house-grid></app-house-grid>
         </div>
       </div>
     </div>
   </main>
 
-  <!-- Footer -->
   <app-footer></app-footer>
 </div>

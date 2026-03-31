@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { LoginService } from '../../Services/Login/login.service';
+import { AuthService } from '../../Services/Auth/Auth.service';
 
 interface LoginForm {
   accountType: 'customer' | 'owner';
@@ -43,7 +44,8 @@ export class LoginComponent {
   constructor(
     private router: Router,
     private toastr: ToastrService,
-    private loginService: LoginService
+    private loginService: LoginService,
+    private authService: AuthService
   ) {}
 
   get isOwner(): boolean {
@@ -53,41 +55,23 @@ export class LoginComponent {
   selectAccountType(type: 'customer' | 'owner'): void {
     this.formData.accountType = type;
     this.errors = {};
-    if (type === 'customer') {
-      this.formData.accessWord = '';
-    }
+    if (type === 'customer') this.formData.accessWord = '';
   }
 
   onInputChange(field: keyof FormErrors): void {
-    if (this.errors[field]) {
-      delete this.errors[field];
-    }
+    if (this.errors[field]) delete this.errors[field];
   }
 
   onSubmit(): void {
     const newErrors: FormErrors = {};
+    if (!this.formData.username) newErrors.username = 'El nombre de usuario es requerido';
+    if (!this.isOwner && !this.formData.password) newErrors.password = 'La contraseña es requerida';
+    if (this.isOwner && !this.formData.accessWord) newErrors.accessWord = 'La palabra de acceso es requerida';
 
-    if (!this.formData.username) {
-      newErrors.username = 'El nombre de usuario es requerido';
-    }
-
-    if (!this.isOwner && !this.formData.password) {
-      newErrors.password = 'La contraseña es requerida';
-    }
-
-    if (this.isOwner && !this.formData.accessWord) {
-      newErrors.accessWord = 'La palabra de acceso es requerida';
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      this.errors = newErrors;
-      return;
-    }
+    if (Object.keys(newErrors).length > 0) { this.errors = newErrors; return; }
 
     this.isLoading = true;
 
-    // El backend LoginRequest recibe userName y password.
-    // Para propietarios, el "password" del request es la accessWord.
     const requestBody = {
       userName: this.formData.username,
       password: this.isOwner ? this.formData.accessWord : this.formData.password
@@ -95,6 +79,15 @@ export class LoginComponent {
 
     this.loginService.loginUsuario(requestBody, this.isOwner).subscribe({
       next: (response) => {
+        // Guardar usuario en AuthService
+        const userId = response?.data?.id || response?.data || 'unknown';
+        this.authService.login({
+          id: typeof userId === 'string' ? userId : 'unknown',
+          userName: this.formData.username,
+          accountType: this.formData.accountType,
+          email: response?.data?.email
+        });
+
         const tipo = this.isOwner ? 'propietario' : 'cliente';
         this.toastr.success(
           `Bienvenido de nuevo, ${this.formData.username} (${tipo})`,
@@ -105,9 +98,7 @@ export class LoginComponent {
       },
       error: (error) => {
         let errorMsg = 'Por favor verifica tus credenciales.';
-        if (error.error?.message) {
-          errorMsg = error.error.message;
-        }
+        if (error.error?.message) errorMsg = error.error.message;
         this.toastr.error(errorMsg, 'Error al iniciar sesión');
         this.isLoading = false;
       }
