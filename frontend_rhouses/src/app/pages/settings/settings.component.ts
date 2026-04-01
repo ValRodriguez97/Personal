@@ -1,19 +1,19 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
 import { NavbarComponent } from '../homepage/components/navbar/navbar.component';
 import { ToastrService } from 'ngx-toastr';
 import { AuthService } from '../../Services/Auth/Auth.service';
+import { BankAccountService, BankAccountPayload } from '../../Services/BankAccount/BankAccount.service';
 
 interface BankAccount {
   id: string;
-  accountNumber: string;
-  bankName: string;
+  numberAccount: string;
+  bankName: string;    // mapped from "bank" in backend
   accountType: string;
-  balance: number;
-  isPrimary: boolean;
-  createdAt: Date;
+  balance: number;     // mapped from "mount" in backend
+  isPrimary: boolean;  // frontend-only concept (first loaded = primary)
 }
 
 interface BankForm {
@@ -33,20 +33,21 @@ interface BankFormErrors {
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, NavbarComponent],
   templateUrl: './settings.component.html',
   styleUrls: ['./settings.component.css']
 })
-export class SettingsComponent {
-  authService = inject(AuthService);
-  private toastr = inject(ToastrService);
-  private router = inject(Router);
+export class SettingsComponent implements OnInit {
+  authService      = inject(AuthService);
+  private toastr   = inject(ToastrService);
+  private router   = inject(Router);
+  private bankSvc  = inject(BankAccountService);
 
   activeTab: 'profile' | 'bank' = 'bank';
 
-  // ── Bank accounts (lógica portada de ANGULAR_PROJECT) ──
-  showAddModal = false;
-  isLoading = false;
+  showAddModal     = false;
+  isLoading        = false;
+  isLoadingAccounts = false;
   editingAccountId: string | null = null;
 
   formData: BankForm = { accountNumber: '', bankName: '', accountType: 'ahorros', balance: '' };
@@ -66,6 +67,39 @@ export class SettingsComponent {
     'Banco Popular', 'Scotiabank Colpatria', 'Otro'
   ];
 
+  ngOnInit(): void {
+    this.loadAccounts();
+  }
+
+  // ── Load ─────────────────────────────────────────────────────────────────
+
+  loadAccounts(): void {
+    const userId = this.authService.user()?.id;
+    if (!userId) return;
+
+    this.isLoadingAccounts = true;
+    this.bankSvc.getByUser(userId).subscribe({
+      next: (res) => {
+        const data: any[] = res?.data ?? [];
+        this.accounts = data.map((a, i) => ({
+          id:          a.id,
+          numberAccount: a.numberAccount,
+          bankName:    a.bank,
+          accountType: a.accountType,
+          balance:     a.mount ?? 0,
+          isPrimary:   i === 0
+        }));
+        this.isLoadingAccounts = false;
+      },
+      error: () => {
+        this.toastr.error('No se pudieron cargar las cuentas bancarias', 'Error');
+        this.isLoadingAccounts = false;
+      }
+    });
+  }
+
+  // ── Modal ─────────────────────────────────────────────────────────────────
+
   openAddModal(): void {
     this.showAddModal = true;
     this.editingAccountId = null;
@@ -73,30 +107,32 @@ export class SettingsComponent {
   }
 
   openEditModal(account: BankAccount): void {
-    this.showAddModal = true;
+    this.showAddModal    = true;
     this.editingAccountId = account.id;
     this.formData = {
-      accountNumber: account.accountNumber,
-      bankName: account.bankName,
-      accountType: account.accountType,
-      balance: account.balance.toString()
+      accountNumber: account.numberAccount,
+      bankName:      account.bankName,
+      accountType:   account.accountType,
+      balance:       account.balance.toString()
     };
   }
 
   closeModal(): void {
-    this.showAddModal = false;
+    this.showAddModal    = false;
     this.editingAccountId = null;
     this.resetForm();
   }
 
   resetForm(): void {
     this.formData = { accountNumber: '', bankName: '', accountType: 'ahorros', balance: '' };
-    this.errors = {};
+    this.errors   = {};
   }
 
   onInputChange(field: keyof BankFormErrors): void {
     if (this.errors[field]) delete this.errors[field];
   }
+
+  // ── Validation ────────────────────────────────────────────────────────────
 
   validateForm(): boolean {
     const e: BankFormErrors = {};
@@ -105,7 +141,7 @@ export class SettingsComponent {
     } else if (this.formData.accountNumber.replace(/\s/g, '').length < 10) {
       e.accountNumber = 'El número de cuenta debe tener al menos 10 dígitos';
     }
-    if (!this.formData.bankName) e.bankName = 'Selecciona un banco';
+    if (!this.formData.bankName)    e.bankName    = 'Selecciona un banco';
     if (!this.formData.accountType) e.accountType = 'Selecciona un tipo de cuenta';
     if (!this.formData.balance) {
       e.balance = 'El balance es requerido';
@@ -116,33 +152,76 @@ export class SettingsComponent {
     return Object.keys(e).length === 0;
   }
 
-  async onSubmit(): Promise<void> {
-    if (!this.validateForm()) return;
-    this.isLoading = true;
-    await new Promise(r => setTimeout(r, 900));
+  // ── Submit ────────────────────────────────────────────────────────────────
 
-    const account: BankAccount = {
-      id: this.editingAccountId || Date.now().toString(),
-      accountNumber: this.formData.accountNumber,
-      bankName: this.formData.bankName,
-      accountType: this.formData.accountType,
-      balance: parseFloat(this.formData.balance),
-      isPrimary: this.accounts.length === 0,
-      createdAt: new Date()
+  onSubmit(): void {
+    if (!this.validateForm()) return;
+
+    const userId = this.authService.user()?.id;
+    if (!userId) {
+      this.toastr.error('Debes iniciar sesión para gestionar cuentas', 'Sin sesión');
+      return;
+    }
+
+    this.isLoading = true;
+
+    const payload: BankAccountPayload = {
+      numberAccount: this.formData.accountNumber,
+      bank:          this.formData.bankName,
+      accountType:   this.formData.accountType
     };
 
     if (this.editingAccountId) {
-      const idx = this.accounts.findIndex(a => a.id === this.editingAccountId);
-      if (idx !== -1) this.accounts[idx] = { ...this.accounts[idx], ...account };
-      this.toastr.success('Cuenta actualizada correctamente', '¡Éxito!');
+      // UPDATE
+      this.bankSvc.updateAccount(userId, this.editingAccountId, payload).subscribe({
+        next: (res) => {
+          const updated = res?.data;
+          const idx = this.accounts.findIndex(a => a.id === this.editingAccountId);
+          if (idx !== -1 && updated) {
+            this.accounts[idx] = {
+              ...this.accounts[idx],
+              numberAccount: updated.numberAccount,
+              bankName:      updated.bank,
+              accountType:   updated.accountType
+            };
+          }
+          this.toastr.success('Cuenta actualizada correctamente', '¡Éxito!');
+          this.isLoading = false;
+          this.closeModal();
+        },
+        error: (err) => {
+          this.toastr.error(err?.error?.message ?? 'Error al actualizar la cuenta', 'Error');
+          this.isLoading = false;
+        }
+      });
     } else {
-      this.accounts.push(account);
-      this.toastr.success('Cuenta bancaria añadida', '¡Éxito!');
+      // CREATE
+      this.bankSvc.addAccount(userId, payload).subscribe({
+        next: (res) => {
+          const created = res?.data;
+          if (created) {
+            this.accounts.push({
+              id:            created.id,
+              numberAccount: created.numberAccount,
+              bankName:      created.bank,
+              accountType:   created.accountType,
+              balance:       created.mount ?? 0,
+              isPrimary:     this.accounts.length === 0
+            });
+          }
+          this.toastr.success('Cuenta bancaria guardada en el servidor', '¡Éxito!');
+          this.isLoading = false;
+          this.closeModal();
+        },
+        error: (err) => {
+          this.toastr.error(err?.error?.message ?? 'Error al guardar la cuenta', 'Error');
+          this.isLoading = false;
+        }
+      });
     }
-
-    this.isLoading = false;
-    this.closeModal();
   }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
 
   setPrimaryAccount(id: string): void {
     this.accounts = this.accounts.map(a => ({ ...a, isPrimary: a.id === id }));
@@ -150,10 +229,24 @@ export class SettingsComponent {
   }
 
   deleteAccount(id: string): void {
-    if (confirm('¿Estás seguro de eliminar esta cuenta bancaria?')) {
-      this.accounts = this.accounts.filter(a => a.id !== id);
-      this.toastr.success('Cuenta eliminada', '¡Eliminada!');
-    }
+    if (!confirm('¿Estás seguro de eliminar esta cuenta bancaria?')) return;
+
+    const userId = this.authService.user()?.id;
+    if (!userId) return;
+
+    this.bankSvc.deleteAccount(userId, id).subscribe({
+      next: () => {
+        this.accounts = this.accounts.filter(a => a.id !== id);
+        // Si se eliminó la principal, asignar la primera restante
+        if (this.accounts.length > 0 && !this.accounts.some(a => a.isPrimary)) {
+          this.accounts[0].isPrimary = true;
+        }
+        this.toastr.success('Cuenta eliminada', '¡Eliminada!');
+      },
+      error: (err) => {
+        this.toastr.error(err?.error?.message ?? 'Error al eliminar la cuenta', 'Error');
+      }
+    });
   }
 
   formatAccountNumber(n: string): string {
@@ -161,7 +254,9 @@ export class SettingsComponent {
   }
 
   formatBalance(b: number): string {
-    return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(b);
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency', currency: 'COP', maximumFractionDigits: 0
+    }).format(b);
   }
 
   getAccountTypeLabel(t: string): string {
