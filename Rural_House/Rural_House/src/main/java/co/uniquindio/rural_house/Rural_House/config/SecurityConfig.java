@@ -37,6 +37,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/owners/register", "/api/owners/login").permitAll()
                         .requestMatchers("/api/customers/register", "/api/customers/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/houses/**").permitAll()
+                        .requestMatchers("/api/bank-accounts/**").permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
                         .anyRequest().authenticated()
                 )

@@ -1,6 +1,5 @@
 package co.uniquindio.rural_house.Rural_House.controller;
 
-import co.uniquindio.rural_house.Rural_House.entity.*;
 import co.uniquindio.rural_house.Rural_House.service.*;
 import co.uniquindio.rural_house.Rural_House.dto.response.*;
 import co.uniquindio.rural_house.Rural_House.dto.request.*;
