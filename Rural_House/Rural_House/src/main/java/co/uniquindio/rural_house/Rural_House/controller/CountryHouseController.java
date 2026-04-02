@@ -127,6 +127,15 @@ public class CountryHouseController {
         return ResponseEntity.ok(ApiResponse.ok(countryHouseService.findById(id)));
     }
 
+    /**
+     * GET /api/houses
+     * Lista todas las casas rurales activas (homepage).
+     */
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<CountryHouseResponse>>> getAll() {
+        return ResponseEntity.ok(ApiResponse.ok(countryHouseService.findAll()));
+    }
+
     // ─── Disponibilidad ───────────────────────────────────────────────────────
 
     /**

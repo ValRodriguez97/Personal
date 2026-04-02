@@ -5,23 +5,17 @@
 
     <!-- Header -->
     <div class="mb-8">
-      <div class="flex items-center gap-3 mb-2">
-        <button (click)="onBack()" *ngIf="step > 1"
-                class="p-2 rounded-lg hover:bg-white transition-colors text-gray-500">
+      <div class="flex items-center gap-3 mb-3">
+        <a routerLink="/" class="p-2 rounded-lg hover:bg-white transition-colors text-gray-500">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
-        </button>
-        <div>
-          <h1 class="text-2xl font-black" style="color: var(--rhouses-secondary-dark)">
-            Registrar casa rural
-          </h1>
-          <p class="text-sm text-gray-500">Paso {{ step }} de 4 — {{ stepTitle }}</p>
+        </a>
+        <div class="flex-1">
+          <h1 class="text-2xl font-black" style="color: var(--rhouses-secondary-dark)">Registrar casa rural</h1>
+          <p class="text-sm text-gray-500">{{ stepTitle }}</p>
         </div>
-        <span class="ml-auto text-sm font-bold" style="color: var(--rhouses-accent)">
-          Paso {{ step }}/4
-        </span>
+        <span class="text-sm font-bold" style="color: var(--rhouses-accent)">{{ step }}/4</span>
       </div>
-      <!-- Barra de progreso -->
       <div class="w-full bg-gray-200 h-2 rounded-full">
         <div class="h-2 rounded-full transition-all duration-500"
              style="background-color: var(--rhouses-accent)"
@@ -29,7 +23,6 @@
       </div>
     </div>
 
-    <!-- Card contenedor -->
     <div class="bg-white rounded-2xl shadow-md p-8">
 
       <!-- ══ STEP 1: Información general ══ -->
@@ -38,80 +31,51 @@
           Información general 🏡
         </h2>
 
-        <!-- Código -->
         <div>
-          <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">
-            Código único *
-          </label>
-          <input
-            type="text" placeholder="Ej: CASA-001"
-            [(ngModel)]="form.code"
-            (ngModelChange)="errors['code'] = ''"
-            [class]="'w-full px-4 py-3 border rounded-xl outline-none transition-all text-sm ' +
-              (errors['code'] ? 'border-red-400 focus:ring-2 focus:ring-red-400/20'
-                              : 'border-gray-200 focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]')"
-          />
+          <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">Código único *</label>
+          <input type="text" placeholder="Ej: CASA-001" [(ngModel)]="form.code"
+                 (ngModelChange)="errors['code'] = ''"
+                 [class]="'w-full px-4 py-3 border rounded-xl outline-none text-sm transition-all ' +
+                   (errors['code'] ? 'border-red-400' : 'border-gray-200 focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]')"/>
           <p *ngIf="errors['code']" class="text-red-500 text-xs mt-1">{{ errors['code'] }}</p>
         </div>
 
-        <!-- Descripción -->
         <div>
-          <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">
-            Descripción
-          </label>
-          <textarea
-            rows="3" placeholder="Describe tu casa rural..."
-            [(ngModel)]="form.description"
-            class="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none transition-all text-sm
-                   focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)] resize-none">
-          </textarea>
+          <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">Descripción</label>
+          <textarea rows="3" placeholder="Describe tu casa rural..." [(ngModel)]="form.description"
+                    class="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none text-sm resize-none
+                           focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]"></textarea>
         </div>
 
-        <!-- Población -->
         <div>
-          <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">
-            Población *
-          </label>
-          <input
-            type="text" placeholder="Ej: Salento"
-            [(ngModel)]="form.populationName"
-            (ngModelChange)="errors['populationName'] = ''"
-            [class]="'w-full px-4 py-3 border rounded-xl outline-none transition-all text-sm ' +
-              (errors['populationName'] ? 'border-red-400' : 'border-gray-200 focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]')"
-          />
+          <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">Población *</label>
+          <input type="text" placeholder="Ej: Salento" [(ngModel)]="form.populationName"
+                 (ngModelChange)="errors['populationName'] = ''"
+                 [class]="'w-full px-4 py-3 border rounded-xl outline-none text-sm transition-all ' +
+                   (errors['populationName'] ? 'border-red-400' : 'border-gray-200 focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]')"/>
           <p *ngIf="errors['populationName']" class="text-red-500 text-xs mt-1">{{ errors['populationName'] }}</p>
         </div>
 
-        <!-- Baños y garaje -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">
-              Baños privados *
-            </label>
+            <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">Baños privados *</label>
             <input type="number" min="0" [(ngModel)]="form.privateBathrooms"
                    (ngModelChange)="errors['bathrooms'] = ''"
                    [class]="'w-full px-4 py-3 border rounded-xl outline-none text-sm ' +
-                (errors['bathrooms'] ? 'border-red-400' : 'border-gray-200 focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]')"
-            />
+                     (errors['bathrooms'] ? 'border-red-400' : 'border-gray-200 focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]')"/>
           </div>
           <div>
-            <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">
-              Baños públicos *
-            </label>
+            <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">Baños públicos *</label>
             <input type="number" min="0" [(ngModel)]="form.publicBathrooms"
                    (ngModelChange)="errors['bathrooms'] = ''"
                    [class]="'w-full px-4 py-3 border rounded-xl outline-none text-sm ' +
-                (errors['bathrooms'] ? 'border-red-400' : 'border-gray-200 focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]')"
-            />
+                     (errors['bathrooms'] ? 'border-red-400' : 'border-gray-200 focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]')"/>
           </div>
           <div>
-            <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">
-              Plazas de garaje
-            </label>
+            <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">Garajes</label>
             <input type="number" min="0" [(ngModel)]="form.garagePlaces"
                    class="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none text-sm
-                     focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]"
-            />
+                          focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]"/>
           </div>
         </div>
         <p *ngIf="errors['bathrooms']" class="text-red-500 text-xs">{{ errors['bathrooms'] }}</p>
@@ -132,63 +96,50 @@
             Habitaciones 🛏️ <span class="text-sm font-normal text-gray-400">(mín. 3)</span>
           </h2>
           <button (click)="addBedroom()"
-                  class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-bold
-                   hover:opacity-90 transition-opacity"
-                  style="background-color: var(--rhouses-accent)">
+            class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-bold hover:opacity-90"
+            style="background-color: var(--rhouses-accent)">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
                  stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
             Añadir
           </button>
         </div>
 
-        <p *ngIf="errors['bedrooms']"   class="text-red-500 text-sm">{{ errors['bedrooms'] }}</p>
+        <p *ngIf="errors['bedrooms']"     class="text-red-500 text-sm">{{ errors['bedrooms'] }}</p>
         <p *ngIf="errors['bedroomCodes']" class="text-red-500 text-sm">{{ errors['bedroomCodes'] }}</p>
         <p *ngIf="errors['bedroomNull']"  class="text-red-500 text-sm">{{ errors['bedroomNull'] }}</p>
 
-        <!-- Empty state -->
         <div *ngIf="form.bedrooms.length === 0"
              class="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">
           Pulsa "Añadir" para agregar habitaciones
         </div>
 
-        <!-- Lista de habitaciones -->
         <div *ngFor="let bedroom of form.bedrooms; let i = index"
              class="border border-gray-200 rounded-xl p-5 space-y-4 animate-fade-in">
           <div class="flex items-center justify-between">
-            <h3 class="font-bold text-sm" style="color: var(--rhouses-secondary-dark)">
-              Habitación {{ i + 1 }}
-            </h3>
+            <h3 class="font-bold text-sm" style="color: var(--rhouses-secondary-dark)">Habitación {{ i + 1 }}</h3>
             <button (click)="removeBedroom(i)"
-                    class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+              class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
                    stroke="currentColor" stroke-width="2">
                 <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
               </svg>
             </button>
           </div>
-
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <!-- Código -->
             <div>
               <label class="block text-xs font-semibold mb-1 text-gray-600">Código único *</label>
-              <input type="number" placeholder="Ej: 1"
-                     [(ngModel)]="bedroom.bedroomCode"
+              <input type="number" placeholder="Ej: 1" [(ngModel)]="bedroom.bedroomCode"
                      class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none
-                       focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]"
-              />
+                            focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]"/>
             </div>
-            <!-- Nº camas -->
             <div>
               <label class="block text-xs font-semibold mb-1 text-gray-600">Nº de camas</label>
               <input type="number" min="1" max="6"
                      [ngModel]="bedroom.numberBeds"
                      (ngModelChange)="updateBedTypes(bedroom, $event)"
                      class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none
-                       focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]"
-              />
+                            focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]"/>
             </div>
-            <!-- Baño propio -->
             <div class="flex flex-col justify-center">
               <label class="text-xs font-semibold mb-1 text-gray-600">Baño privado</label>
               <label class="flex items-center gap-2 cursor-pointer">
@@ -197,8 +148,6 @@
               </label>
             </div>
           </div>
-
-          <!-- Tipo de camas -->
           <div *ngIf="bedroom.numberBeds > 0">
             <label class="block text-xs font-semibold mb-2 text-gray-600">
               Tipo de camas ({{ bedroom.numberBeds }} cama{{ bedroom.numberBeds > 1 ? 's' : '' }})
@@ -206,12 +155,10 @@
             <div class="flex flex-wrap gap-2">
               <div *ngFor="let idx of bedRange(bedroom.numberBeds)" class="flex items-center gap-1">
                 <span class="text-xs text-gray-400">Cama {{ idx + 1 }}:</span>
-                <select
-                  [ngModel]="bedroom.typesOfBeds[idx]"
-                  (ngModelChange)="setBedType(bedroom, idx, $event)"
-                  class="px-2 py-1 border border-gray-200 rounded-lg text-xs outline-none
-                         focus:ring-1 focus:ring-[var(--rhouses-accent)] focus:border-[var(--rhouses-accent)]"
-                >
+                <select [ngModel]="bedroom.typesOfBeds[idx]"
+                        (ngModelChange)="setBedType(bedroom, idx, $event)"
+                        class="px-2 py-1 border border-gray-200 rounded-lg text-xs outline-none
+                               focus:ring-1 focus:ring-[var(--rhouses-accent)]">
                   <option value="SIMPLE">Simple</option>
                   <option value="DOUBLE">Doble</option>
                 </select>
@@ -231,9 +178,8 @@
               Cocinas 🍳 <span class="text-sm font-normal text-gray-400">(mín. 1)</span>
             </h2>
             <button (click)="addKitchen()"
-                    class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-bold
-                     hover:opacity-90 transition-opacity"
-                    style="background-color: var(--rhouses-accent)">
+              class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-bold hover:opacity-90"
+              style="background-color: var(--rhouses-accent)">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
                    stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
               Añadir
@@ -241,14 +187,17 @@
           </div>
           <p *ngIf="errors['kitchens']" class="text-red-500 text-sm mb-2">{{ errors['kitchens'] }}</p>
 
+          <div *ngIf="form.diningRooms.length === 0"
+               class="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center text-gray-400 text-sm">
+            Pulsa "Añadir" para agregar una cocina
+          </div>
+
           <div *ngFor="let kitchen of form.diningRooms; let i = index"
                class="border border-gray-200 rounded-xl p-4 mb-3 animate-fade-in">
             <div class="flex items-center justify-between mb-3">
-              <h3 class="font-bold text-sm" style="color: var(--rhouses-secondary-dark)">
-                Cocina {{ i + 1 }}
-              </h3>
+              <h3 class="font-bold text-sm" style="color: var(--rhouses-secondary-dark)">Cocina {{ i + 1 }}</h3>
               <button (click)="removeKitchen(i)"
-                      class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="2">
                   <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
@@ -257,19 +206,12 @@
             </div>
             <div class="flex gap-6">
               <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
-                <input type="checkbox" [(ngModel)]="kitchen.dishWasher" class="rounded"/>
-                Lavavajillas
+                <input type="checkbox" [(ngModel)]="kitchen.dishWasher" class="rounded"/>Lavavajillas
               </label>
               <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
-                <input type="checkbox" [(ngModel)]="kitchen.washingMachine" class="rounded"/>
-                Lavadora
+                <input type="checkbox" [(ngModel)]="kitchen.washingMachine" class="rounded"/>Lavadora
               </label>
             </div>
-          </div>
-
-          <div *ngIf="form.diningRooms.length === 0"
-               class="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center text-gray-400 text-sm">
-            Pulsa "Añadir" para agregar una cocina
           </div>
         </div>
 
@@ -280,9 +222,8 @@
               Fotos 📷 <span class="text-sm font-normal text-gray-400">(opcional)</span>
             </h2>
             <button (click)="addPhoto()"
-                    class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border-2
-                     hover:bg-gray-50 transition-colors"
-                    style="border-color: var(--rhouses-accent); color: var(--rhouses-accent)">
+              class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border-2 hover:bg-gray-50"
+              style="border-color: var(--rhouses-accent); color: var(--rhouses-accent)">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
                    stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
               Añadir foto
@@ -295,32 +236,26 @@
             <div class="flex items-center justify-between">
               <span class="text-sm font-semibold text-gray-600">Foto {{ i + 1 }}</span>
               <button (click)="removePhoto(i)"
-                      class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="2">
                   <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
                 </svg>
               </button>
             </div>
-            <input type="url" placeholder="https://ejemplo.com/foto.jpg"
-                   [(ngModel)]="photo.url"
+            <input type="url" placeholder="https://ejemplo.com/foto.jpg" [(ngModel)]="photo.url"
                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none
-                     focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]"
-            />
-            <input type="text" placeholder="Descripción de la foto"
-                   [(ngModel)]="photo.description"
+                          focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]"/>
+            <input type="text" placeholder="Descripción de la foto" [(ngModel)]="photo.description"
                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none
-                     focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]"
-            />
+                          focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]"/>
           </div>
         </div>
       </div>
 
-      <!-- ══ STEP 4: Resumen y confirmar ══ -->
+      <!-- ══ STEP 4: Resumen ══ -->
       <div *ngIf="step === 4" class="animate-slide-in space-y-5">
-        <h2 class="text-lg font-black" style="color: var(--rhouses-secondary-dark)">
-          Resumen de la casa 📋
-        </h2>
+        <h2 class="text-lg font-black" style="color: var(--rhouses-secondary-dark)">Resumen de la casa 📋</h2>
 
         <div class="bg-gray-50 rounded-xl p-5 space-y-3 text-sm">
           <div class="flex justify-between py-2 border-b border-gray-200">
@@ -351,40 +286,37 @@
           </div>
           <div class="flex justify-between py-2">
             <span class="text-gray-500">Fotos:</span>
-            <span class="font-bold" style="color: var(--rhouses-secondary-dark)">
-              {{ form.photo.filter(p => p.url.trim()).length }}
-            </span>
+            <!-- Usar getter en lugar de arrow function -->
+            <span class="font-bold" style="color: var(--rhouses-secondary-dark)">{{ photoCount }}</span>
           </div>
         </div>
 
         <div class="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
           <span class="text-lg">⚠️</span>
-          <p>Al registrar la casa podrás añadir paquetes de alquiler desde tu panel de propietario para que los clientes puedan reservarla.</p>
+          <p>Al registrar la casa podrás añadir paquetes de alquiler para que los clientes puedan reservarla.</p>
         </div>
       </div>
 
-      <!-- ── Botones de navegación ── -->
+      <!-- Botones navegación -->
       <div class="flex gap-3 mt-8 pt-6 border-t border-gray-100">
         <button *ngIf="step > 1" type="button" (click)="onBack()"
-                class="flex items-center gap-2 px-5 py-3 border border-gray-200 rounded-xl text-sm
+          class="flex items-center gap-2 px-5 py-3 border border-gray-200 rounded-xl text-sm
                  font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
           Atrás
         </button>
         <button type="button" (click)="onNext()" [disabled]="isLoading"
-                class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white
-                 font-bold text-sm hover:opacity-90 transition-all shadow-md
-                 disabled:opacity-50 disabled:cursor-not-allowed"
-                style="background-color: var(--rhouses-accent)">
+          class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white font-bold
+                 text-sm hover:opacity-90 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          style="background-color: var(--rhouses-accent)">
           <span>{{ isLoading ? 'Registrando...' : step === 4 ? 'Registrar casa' : 'Continuar' }}</span>
           <svg *ngIf="!isLoading && step < 4" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="m9 18 6-6-6-6"/>
           </svg>
           <svg *ngIf="isLoading" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               class="animate-spin">
+               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin">
             <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
           </svg>
         </button>

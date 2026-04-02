@@ -2,7 +2,6 @@
 
   <app-navbar></app-navbar>
 
-  <!-- Hero emite resultados y loading -->
   <app-hero-section
     (searchResults)="onSearchResults($event)"
     (searchLoading)="onSearchLoading()">
@@ -11,8 +10,8 @@
   <main class="flex-grow">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
-      <!-- Trigger de filtros — solo visible cuando hay resultados -->
-      <div *ngIf="hasSearched && allHouses.length > 0" class="mb-6">
+      <!-- Trigger de filtros -->
+      <div *ngIf="!isLoading && allHouses.length > 0" class="mb-6">
         <app-filter-trigger (triggerClick)="toggleFilter()"></app-filter-trigger>
       </div>
 
@@ -34,17 +33,15 @@
           </app-filter-sidebar>
         </div>
 
-        <!-- Grid principal -->
+        <!-- Grid -->
         <div class="flex-1 transition-all duration-300 ease-in-out min-w-0">
           <app-house-grid
             [houses]="filteredHouses"
             [loading]="isLoading"
-            [searchParams]="searchParams"
-            [hasSearched]="hasSearched">
+            [searchParams]="searchParams">
           </app-house-grid>
         </div>
       </div>
-
     </div>
   </main>
 

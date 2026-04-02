@@ -19,18 +19,13 @@ export class HouseGridComponent implements OnChanges {
   @Input() houses: CountryHouseResponse[] = [];
   @Input() loading = false;
   @Input() searchParams: SearchParams = { poblacion: '', fecha: '', noches: 2, tipoAlquiler: 'ambas' };
-  @Input() hasSearched = false;
 
   enrichedHouses: HouseWithAvailability[] = [];
 
   constructor(private countryHouseService: CountryHouseService) {}
 
   get empty(): boolean {
-    return !this.loading && this.hasSearched && this.enrichedHouses.length === 0;
-  }
-
-  get showInitialState(): boolean {
-    return !this.loading && !this.hasSearched;
+    return !this.loading && this.enrichedHouses.length === 0;
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -41,7 +36,7 @@ export class HouseGridComponent implements OnChanges {
         entireHouseAvailable: null,
         checkingAvailability: false
       }));
-
+      // Consultar disponibilidad solo si el usuario eligió fecha
       if (this.searchParams.fecha && this.searchParams.noches > 0) {
         this.enrichedHouses.forEach(h => this.loadAvailability(h));
       }
@@ -59,8 +54,8 @@ export class HouseGridComponent implements OnChanges {
     ).subscribe({
       next: (res) => {
         const avail: AvailabilityResponse = res?.data;
-        house.availabilityLoaded = true;
-        house.checkingAvailability = false;
+        house.availabilityLoaded    = true;
+        house.checkingAvailability  = false;
         if (avail?.dailyAvailability) {
           const days = Object.values(avail.dailyAvailability);
           house.entireHouseAvailable = days.every(d => d.entireHouseStatus === 'FREE');
@@ -68,7 +63,7 @@ export class HouseGridComponent implements OnChanges {
       },
       error: () => {
         house.checkingAvailability = false;
-        house.availabilityLoaded = true;
+        house.availabilityLoaded   = true;
       }
     });
   }

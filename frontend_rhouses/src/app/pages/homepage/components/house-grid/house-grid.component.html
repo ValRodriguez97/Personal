@@ -1,29 +1,11 @@
-<!-- Estado inicial — aún no se ha buscado -->
-<div *ngIf="showInitialState" class="flex flex-col items-center justify-center py-20 px-4 text-center">
-  <div class="w-20 h-20 rounded-full flex items-center justify-center mb-4"
-       style="background-color: var(--rhouses-background-light)">
-    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none"
-         stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
-         style="color: var(--rhouses-primary)">
-      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
-    </svg>
-  </div>
-  <h3 class="text-2xl font-semibold mb-2" style="color: var(--rhouses-secondary-dark)">
-    Busca tu casa rural
-  </h3>
-  <p class="text-gray-500 max-w-sm">
-    Escribe una población en el buscador de arriba para ver las casas disponibles.
-  </p>
-</div>
-
-<!-- Estado de carga -->
+<!-- Cargando -->
 <div *ngIf="loading" class="flex flex-col items-center justify-center py-20">
   <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
        stroke="currentColor" stroke-width="2" class="animate-spin mb-4"
        style="color: var(--rhouses-accent)">
     <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
   </svg>
-  <p class="text-lg text-gray-600">Buscando casas disponibles...</p>
+  <p class="text-lg text-gray-600">Cargando casas disponibles...</p>
 </div>
 
 <!-- Sin resultados -->
@@ -39,18 +21,20 @@
   <h3 class="text-2xl font-semibold mb-2" style="color: var(--rhouses-secondary-dark)">
     No se encontraron casas
   </h3>
-  <p class="text-gray-500 mb-6 max-w-md">
-    No hay casas activas en esa población. Prueba con otra ubicación o ajusta los filtros.
+  <p class="text-gray-500 max-w-md">
+    No hay casas activas que coincidan con tu búsqueda. Prueba con otra población o ajusta los filtros.
   </p>
 </div>
 
-<!-- Resultados reales del backend -->
-<div *ngIf="!loading && !empty && !showInitialState">
-  <div class="mb-6">
-    <h2 class="text-2xl font-semibold" style="color: var(--rhouses-secondary-dark)">
-      Casas rurales encontradas
-    </h2>
-    <p class="text-gray-500 mt-1">{{ enrichedHouses.length }} propiedad(es) en "{{ searchParams.poblacion }}"</p>
+<!-- Resultados -->
+<div *ngIf="!loading && !empty">
+  <div class="mb-6 flex items-center justify-between">
+    <div>
+      <h2 class="text-2xl font-semibold" style="color: var(--rhouses-secondary-dark)">
+        {{ searchParams.poblacion ? 'Casas en "' + searchParams.poblacion + '"' : 'Casas rurales disponibles' }}
+      </h2>
+      <p class="text-gray-500 mt-1">{{ enrichedHouses.length }} propiedad(es) encontrada(s)</p>
+    </div>
   </div>
 
   <div class="grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-6">
@@ -59,32 +43,29 @@
 
       <!-- Imagen -->
       <div class="relative h-56 overflow-hidden">
-        <img [src]="getFirstPhoto(house)" [alt]="house.code"
+        <img [src]="getFirstPhoto(house)" [alt]="house.description || house.code"
              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
 
-        <!-- Badge disponibilidad -->
+        <!-- Badge disponibilidad (solo si hay fecha seleccionada) -->
         <div class="absolute top-3 right-3">
-          <!-- Comprobando -->
           <span *ngIf="house.checkingAvailability"
                 class="flex items-center gap-1 px-3 py-1 bg-gray-500 text-white text-xs font-semibold rounded-full">
-            <svg class="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg class="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2">
               <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
             </svg>
             Verificando
           </span>
-          <!-- Libre -->
           <span *ngIf="house.availabilityLoaded && house.entireHouseAvailable === true"
-                class="flex items-center gap-1 px-3 py-1 bg-green-500 text-white text-xs font-semibold rounded-full">
+                class="px-3 py-1 bg-green-500 text-white text-xs font-semibold rounded-full">
             ✓ Disponible
           </span>
-          <!-- Reservada -->
           <span *ngIf="house.availabilityLoaded && house.entireHouseAvailable === false"
-                class="flex items-center gap-1 px-3 py-1 bg-red-500 text-white text-xs font-semibold rounded-full">
+                class="px-3 py-1 bg-red-500 text-white text-xs font-semibold rounded-full">
             Reservada
           </span>
-          <!-- Sin fecha seleccionada -->
           <span *ngIf="!house.checkingAvailability && !house.availabilityLoaded"
-                class="flex items-center gap-1 px-3 py-1 text-white text-xs font-semibold rounded-full"
+                class="px-3 py-1 text-white text-xs font-semibold rounded-full"
                 style="background-color: var(--rhouses-primary)">
             Activa
           </span>
@@ -102,7 +83,8 @@
       <!-- Contenido -->
       <div class="p-5">
         <div class="mb-3">
-          <h3 class="text-lg font-semibold mb-0.5" style="color: var(--rhouses-secondary-dark)">
+          <h3 class="text-lg font-semibold mb-0.5 line-clamp-1"
+              style="color: var(--rhouses-secondary-dark)">
             {{ house.description || 'Casa Rural' }}
           </h3>
           <p class="text-xs text-gray-400 font-mono">Código: {{ house.code }}</p>
@@ -113,7 +95,8 @@
           <div class="flex items-center gap-1" title="Habitaciones">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
                  stroke="currentColor" stroke-width="2">
-              <path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/>
+              <path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/>
+              <path d="M2 17h20"/><path d="M6 8v9"/>
             </svg>
             <span>{{ house.bedrooms?.length ?? 0 }} hab.</span>
           </div>
@@ -136,14 +119,14 @@
           <div *ngIf="house.diningRooms?.length" class="flex items-center gap-1" title="Cocinas">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
                  stroke="currentColor" stroke-width="2">
-              <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/>
-              <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>
+              <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/>
+              <path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>
             </svg>
             <span>{{ house.diningRooms.length }} cocina(s)</span>
           </div>
         </div>
 
-        <!-- Propietario y botón -->
+        <!-- Footer card -->
         <div class="flex items-center justify-between pt-4 border-t border-gray-100">
           <div>
             <p class="text-xs text-gray-400">Propietario</p>
