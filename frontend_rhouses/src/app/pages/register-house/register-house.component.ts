@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -32,7 +32,7 @@ interface PhotoForm {
   templateUrl: './register-house.component.html',
   styleUrls: ['./register-house.component.css']
 })
-export class RegisterHouseComponent {
+export class RegisterHouseComponent implements OnInit {
   private router          = inject(Router);
   private toastr          = inject(ToastrService);
   private countryHouseSvc = inject(CountryHouseService);
@@ -54,6 +54,20 @@ export class RegisterHouseComponent {
     photo:            [] as PhotoForm[]
   };
 
+  ngOnInit(): void {
+    // Guard: solo propietarios pueden registrar casas
+    if (!this.authService.isLoggedIn()) {
+      this.toastr.warning('Debes iniciar sesión para registrar una casa', 'Acceso denegado');
+      this.router.navigate(['/login']);
+      return;
+    }
+    if (!this.authService.isOwner()) {
+      this.toastr.warning('Solo los propietarios pueden registrar casas rurales', 'Acceso denegado');
+      this.router.navigate(['/']);
+      return;
+    }
+  }
+
   get progressWidth(): number { return (this.step / 4) * 100; }
 
   get stepTitle(): string {
@@ -66,7 +80,6 @@ export class RegisterHouseComponent {
     return titles[this.step] ?? '';
   }
 
-  // Getter sin arrow function — evita el error de Angular en templates
   get photoCount(): number {
     let count = 0;
     for (const p of this.form.photo) {
@@ -122,11 +135,16 @@ export class RegisterHouseComponent {
     if (this.step === 3 && !this.validateStep3()) return;
 
     if (this.step < 4) {
+      // Al pasar del step 1 al 2, pre-añadir 3 habitaciones vacías si no hay ninguna
       if (this.step === 1 && this.form.bedrooms.length === 0) {
         this.addBedroom(); this.addBedroom(); this.addBedroom();
       }
+      // Al pasar del step 2 al 3, pre-añadir 1 cocina y 1 foto si no hay ninguna
       if (this.step === 2 && this.form.diningRooms.length === 0) {
         this.addKitchen();
+      }
+      if (this.step === 2 && this.form.photo.length === 0) {
+        this.addPhoto();
       }
       this.step++;
     } else {
@@ -167,10 +185,18 @@ export class RegisterHouseComponent {
     const e: Record<string, string> = {};
     if (this.form.diningRooms.length < 1)
       e['kitchens'] = 'Debes añadir al menos 1 cocina';
-    for (const p of this.form.photo) {
-      if (!p.url || p.url.trim() === '') {
-        e['photos'] = 'Todas las fotos añadidas deben tener una URL';
-        break;
+
+    // Fotos obligatorias: al menos 1 foto con URL válida
+    const validPhotos = this.form.photo.filter(p => p.url && p.url.trim() !== '');
+    if (validPhotos.length === 0) {
+      e['photos'] = 'Debes añadir al menos 1 foto con una URL válida';
+    } else {
+      // Verificar que todas las filas que tengan algo rellenado tengan URL
+      for (const p of this.form.photo) {
+        if (!p.url || p.url.trim() === '') {
+          e['photos'] = 'Todas las fotos añadidas deben tener una URL';
+          break;
+        }
       }
     }
     this.errors = e;
@@ -183,6 +209,7 @@ export class RegisterHouseComponent {
     const ownerId = this.authService.user()?.id;
     if (!ownerId) {
       this.toastr.error('Debes iniciar sesión como propietario', 'Sin sesión');
+      this.router.navigate(['/login']);
       return;
     }
 

@@ -85,7 +85,7 @@
                stroke="#3b82f6" stroke-width="2" class="flex-shrink-0 mt-0.5">
             <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
           </svg>
-          La casa debe tener mínimo 3 habitaciones, 1 cocina y 2 baños en total.
+          La casa debe tener mínimo 3 habitaciones, 1 cocina, 2 baños en total y al menos 1 foto.
         </div>
       </div>
 
@@ -215,11 +215,12 @@
           </div>
         </div>
 
-        <!-- Fotos -->
+        <!-- Fotos (OBLIGATORIO) -->
         <div>
           <div class="flex items-center justify-between mb-3">
             <h2 class="text-lg font-black" style="color: var(--rhouses-secondary-dark)">
-              Fotos 📷 <span class="text-sm font-normal text-gray-400">(opcional)</span>
+              Fotos 📷
+              <span class="text-sm font-normal text-red-500">* (mín. 1 obligatoria)</span>
             </h2>
             <button (click)="addPhoto()"
               class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border-2 hover:bg-gray-50"
@@ -231,10 +232,18 @@
           </div>
           <p *ngIf="errors['photos']" class="text-red-500 text-sm mb-2">{{ errors['photos'] }}</p>
 
+          <div *ngIf="form.photo.length === 0"
+               class="border-2 border-dashed border-red-200 bg-red-50 rounded-xl p-6 text-center text-red-400 text-sm">
+            ⚠️ Debes añadir al menos 1 foto con una URL válida
+          </div>
+
           <div *ngFor="let photo of form.photo; let i = index"
                class="border border-gray-200 rounded-xl p-4 mb-3 animate-fade-in space-y-3">
             <div class="flex items-center justify-between">
-              <span class="text-sm font-semibold text-gray-600">Foto {{ i + 1 }}</span>
+              <span class="text-sm font-semibold text-gray-600">
+                Foto {{ i + 1 }}
+                <span *ngIf="i === 0" class="text-xs text-red-500 font-normal ml-1">(obligatoria)</span>
+              </span>
               <button (click)="removePhoto(i)"
                 class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -244,9 +253,9 @@
               </button>
             </div>
             <input type="url" placeholder="https://ejemplo.com/foto.jpg" [(ngModel)]="photo.url"
-                   class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none
-                          focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]"/>
-            <input type="text" placeholder="Descripción de la foto" [(ngModel)]="photo.description"
+                   [class]="'w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)] ' +
+                     (errors['photos'] && (!photo.url || photo.url.trim() === '') ? 'border-red-300' : 'border-gray-200')"/>
+            <input type="text" placeholder="Descripción de la foto (opcional)" [(ngModel)]="photo.description"
                    class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none
                           focus:ring-2 focus:ring-[var(--rhouses-accent)]/20 focus:border-[var(--rhouses-accent)]"/>
           </div>
@@ -286,7 +295,6 @@
           </div>
           <div class="flex justify-between py-2">
             <span class="text-gray-500">Fotos:</span>
-            <!-- Usar getter en lugar de arrow function -->
             <span class="font-bold" style="color: var(--rhouses-secondary-dark)">{{ photoCount }}</span>
           </div>
         </div>

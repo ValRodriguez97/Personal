@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export interface CountryHouseResponse {
@@ -79,12 +79,28 @@ export class CountryHouseService {
 
   constructor(private http: HttpClient) {}
 
-  // Lista todas las casas activas (homepage)
+  // Obtiene headers con JWT si existe en sessionStorage
+  private getAuthHeaders(): HttpHeaders {
+    const raw = sessionStorage.getItem('rhouses_user');
+    let token = '';
+    if (raw) {
+      try {
+        const user = JSON.parse(raw);
+        token = user?.token ?? '';
+      } catch { token = ''; }
+    }
+    if (!token) {
+      token = sessionStorage.getItem('rhouses_token') ?? '';
+    }
+    return token
+      ? new HttpHeaders({ 'Authorization': `Bearer ${token}` })
+      : new HttpHeaders();
+  }
+
   findAll(): Observable<any> {
     return this.http.get(`${this.apiUrl}`);
   }
 
-  // Busca por población
   findByPopulation(population: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/search?population=${encodeURIComponent(population)}`);
   }
@@ -101,8 +117,34 @@ export class CountryHouseService {
     return this.http.get(`${this.apiUrl}/${code}/availability?checkIn=${checkIn}&nights=${nights}`);
   }
 
-  // Registrar casa rural (US14)
   register(ownerId: string, payload: RegisterHousePayload): Observable<any> {
-    return this.http.post(`${this.apiUrl}?ownerId=${ownerId}`, payload);
+    return this.http.post(
+      `${this.apiUrl}?ownerId=${ownerId}`,
+      payload,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  update(ownerId: string, houseId: string, payload: RegisterHousePayload): Observable<any> {
+    return this.http.put(
+      `${this.apiUrl}/${houseId}?ownerId=${ownerId}`,
+      payload,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  deactivate(ownerId: string, houseId: string): Observable<any> {
+    return this.http.delete(
+      `${this.apiUrl}/${houseId}?ownerId=${ownerId}`,
+      { headers: this.getAuthHeaders() }
+    );
+  }
+
+  addRentalPackage(ownerId: string, houseId: string, payload: any): Observable<any> {
+    return this.http.post(
+      `${this.apiUrl}/${houseId}/packages?ownerId=${ownerId}`,
+      payload,
+      { headers: this.getAuthHeaders() }
+    );
   }
 }

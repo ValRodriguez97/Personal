@@ -37,9 +37,9 @@ export class LoginComponent {
   };
 
   errors: FormErrors = {};
-  showPassword = false;
-  showAccessWord = false;
-  isLoading = false;
+  showPassword    = false;
+  showAccessWord  = false;
+  isLoading       = false;
 
   constructor(
     private router: Router,
@@ -64,14 +64,18 @@ export class LoginComponent {
 
   onSubmit(): void {
     const newErrors: FormErrors = {};
-    if (!this.formData.username) newErrors.username = 'El nombre de usuario es requerido';
-    if (!this.isOwner && !this.formData.password) newErrors.password = 'La contraseña es requerida';
-    if (this.isOwner && !this.formData.accessWord) newErrors.accessWord = 'La palabra de acceso es requerida';
+    if (!this.formData.username)
+      newErrors.username = 'El nombre de usuario es requerido';
+    if (!this.isOwner && !this.formData.password)
+      newErrors.password = 'La contraseña es requerida';
+    if (this.isOwner && !this.formData.accessWord)
+      newErrors.accessWord = 'La palabra de acceso es requerida';
 
     if (Object.keys(newErrors).length > 0) { this.errors = newErrors; return; }
 
     this.isLoading = true;
 
+    // Los propietarios se autentican con accessWord como "password"
     const requestBody = {
       userName: this.formData.username,
       password: this.isOwner ? this.formData.accessWord : this.formData.password
@@ -79,13 +83,29 @@ export class LoginComponent {
 
     this.loginService.loginUsuario(requestBody, this.isOwner).subscribe({
       next: (response) => {
-        // Guardar usuario en AuthService
-        const userId = response?.data?.id || response?.data || 'unknown';
+        // El backend de owners devuelve: { data: { token, type, ownerId, userName } }
+        // El backend de customers devuelve: { data: "customerId" }
+        const data = response?.data;
+
+        let userId: string;
+        let token: string | undefined;
+
+        if (this.isOwner && typeof data === 'object' && data !== null) {
+          // Owner login devuelve AuthResponse con token JWT
+          userId = data.ownerId ?? data.id ?? 'unknown';
+          token  = data.token;
+        } else {
+          // Customer login devuelve el ID directamente como string
+          userId = typeof data === 'string' ? data : (data?.id ?? 'unknown');
+          token  = undefined;
+        }
+
         this.authService.login({
-          id: typeof userId === 'string' ? userId : 'unknown',
-          userName: this.formData.username,
+          id:          userId,
+          userName:    this.formData.username,
           accountType: this.formData.accountType,
-          email: response?.data?.email
+          email:       data?.email,
+          token:       token
         });
 
         const tipo = this.isOwner ? 'propietario' : 'cliente';
@@ -109,6 +129,6 @@ export class LoginComponent {
     this.toastr.info('Esta es una demostración', `Iniciando sesión con ${provider}...`);
   }
 
-  togglePasswordVisibility(): void { this.showPassword = !this.showPassword; }
+  togglePasswordVisibility():   void { this.showPassword   = !this.showPassword; }
   toggleAccessWordVisibility(): void { this.showAccessWord = !this.showAccessWord; }
 }

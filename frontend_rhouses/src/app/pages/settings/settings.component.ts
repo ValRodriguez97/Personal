@@ -10,10 +10,10 @@ import { BankAccountService, BankAccountPayload } from '../../Services/BankAccou
 interface BankAccount {
   id: string;
   numberAccount: string;
-  bankName: string;    // mapped from "bank" in backend
+  bankName: string;
   accountType: string;
-  balance: number;     // mapped from "mount" in backend
-  isPrimary: boolean;  // frontend-only concept (first loaded = primary)
+  balance: number;
+  isPrimary: boolean;
 }
 
 interface BankForm {
@@ -38,15 +38,15 @@ interface BankFormErrors {
   styleUrls: ['./settings.component.css']
 })
 export class SettingsComponent implements OnInit {
-  authService      = inject(AuthService);
-  private toastr   = inject(ToastrService);
-  private router   = inject(Router);
-  private bankSvc  = inject(BankAccountService);
+  authService       = inject(AuthService);
+  private toastr    = inject(ToastrService);
+  private router    = inject(Router);
+  private bankSvc   = inject(BankAccountService);
 
   activeTab: 'profile' | 'bank' = 'bank';
 
-  showAddModal     = false;
-  isLoading        = false;
+  showAddModal      = false;
+  isLoading         = false;
   isLoadingAccounts = false;
   editingAccountId: string | null = null;
 
@@ -71,8 +71,6 @@ export class SettingsComponent implements OnInit {
     this.loadAccounts();
   }
 
-  // ── Load ─────────────────────────────────────────────────────────────────
-
   loadAccounts(): void {
     const userId = this.authService.user()?.id;
     if (!userId) return;
@@ -82,12 +80,16 @@ export class SettingsComponent implements OnInit {
       next: (res) => {
         const data: any[] = res?.data ?? [];
         this.accounts = data.map((a, i) => ({
-          id:          a.id,
-          numberAccount: a.numberAccount,
-          bankName:    a.bank,
-          accountType: a.accountType,
-          balance:     a.mount ?? 0,
-          isPrimary:   i === 0
+          id:            a.id,
+          // El backend devuelve "numberAccount"
+          numberAccount: a.numberAccount ?? '',
+          // El backend devuelve "bank", no "bankName"
+          bankName:      a.bank ?? a.bankName ?? 'Sin banco',
+          // El backend devuelve "accountType"
+          accountType:   a.accountType ?? '',
+          // El backend devuelve "mount" (typo de amount)
+          balance:       a.mount ?? a.balance ?? 0,
+          isPrimary:     i === 0
         }));
         this.isLoadingAccounts = false;
       },
@@ -98,16 +100,14 @@ export class SettingsComponent implements OnInit {
     });
   }
 
-  // ── Modal ─────────────────────────────────────────────────────────────────
-
   openAddModal(): void {
-    this.showAddModal = true;
+    this.showAddModal     = true;
     this.editingAccountId = null;
     this.resetForm();
   }
 
   openEditModal(account: BankAccount): void {
-    this.showAddModal    = true;
+    this.showAddModal     = true;
     this.editingAccountId = account.id;
     this.formData = {
       accountNumber: account.numberAccount,
@@ -118,7 +118,7 @@ export class SettingsComponent implements OnInit {
   }
 
   closeModal(): void {
-    this.showAddModal    = false;
+    this.showAddModal     = false;
     this.editingAccountId = null;
     this.resetForm();
   }
@@ -131,8 +131,6 @@ export class SettingsComponent implements OnInit {
   onInputChange(field: keyof BankFormErrors): void {
     if (this.errors[field]) delete this.errors[field];
   }
-
-  // ── Validation ────────────────────────────────────────────────────────────
 
   validateForm(): boolean {
     const e: BankFormErrors = {};
@@ -152,8 +150,6 @@ export class SettingsComponent implements OnInit {
     return Object.keys(e).length === 0;
   }
 
-  // ── Submit ────────────────────────────────────────────────────────────────
-
   onSubmit(): void {
     if (!this.validateForm()) return;
 
@@ -172,7 +168,6 @@ export class SettingsComponent implements OnInit {
     };
 
     if (this.editingAccountId) {
-      // UPDATE
       this.bankSvc.updateAccount(userId, this.editingAccountId, payload).subscribe({
         next: (res) => {
           const updated = res?.data;
@@ -180,9 +175,9 @@ export class SettingsComponent implements OnInit {
           if (idx !== -1 && updated) {
             this.accounts[idx] = {
               ...this.accounts[idx],
-              numberAccount: updated.numberAccount,
-              bankName:      updated.bank,
-              accountType:   updated.accountType
+              numberAccount: updated.numberAccount ?? this.formData.accountNumber,
+              bankName:      updated.bank ?? updated.bankName ?? this.formData.bankName,
+              accountType:   updated.accountType ?? this.formData.accountType
             };
           }
           this.toastr.success('Cuenta actualizada correctamente', '¡Éxito!');
@@ -195,21 +190,20 @@ export class SettingsComponent implements OnInit {
         }
       });
     } else {
-      // CREATE
       this.bankSvc.addAccount(userId, payload).subscribe({
         next: (res) => {
           const created = res?.data;
           if (created) {
             this.accounts.push({
               id:            created.id,
-              numberAccount: created.numberAccount,
-              bankName:      created.bank,
-              accountType:   created.accountType,
-              balance:       created.mount ?? 0,
+              numberAccount: created.numberAccount ?? '',
+              bankName:      created.bank ?? created.bankName ?? this.formData.bankName,
+              accountType:   created.accountType ?? this.formData.accountType,
+              balance:       created.mount ?? created.balance ?? 0,
               isPrimary:     this.accounts.length === 0
             });
           }
-          this.toastr.success('Cuenta bancaria guardada en el servidor', '¡Éxito!');
+          this.toastr.success('Cuenta bancaria guardada correctamente', '¡Éxito!');
           this.isLoading = false;
           this.closeModal();
         },
@@ -220,8 +214,6 @@ export class SettingsComponent implements OnInit {
       });
     }
   }
-
-  // ── Helpers ──────────────────────────────────────────────────────────────
 
   setPrimaryAccount(id: string): void {
     this.accounts = this.accounts.map(a => ({ ...a, isPrimary: a.id === id }));
@@ -237,7 +229,6 @@ export class SettingsComponent implements OnInit {
     this.bankSvc.deleteAccount(userId, id).subscribe({
       next: () => {
         this.accounts = this.accounts.filter(a => a.id !== id);
-        // Si se eliminó la principal, asignar la primera restante
         if (this.accounts.length > 0 && !this.accounts.some(a => a.isPrimary)) {
           this.accounts[0].isPrimary = true;
         }
@@ -250,16 +241,18 @@ export class SettingsComponent implements OnInit {
   }
 
   formatAccountNumber(n: string): string {
+    if (!n) return '**** **** **** ????';
     return '**** **** **** ' + n.slice(-4);
   }
 
   formatBalance(b: number): string {
     return new Intl.NumberFormat('es-CO', {
       style: 'currency', currency: 'COP', maximumFractionDigits: 0
-    }).format(b);
+    }).format(b ?? 0);
   }
 
   getAccountTypeLabel(t: string): string {
+    if (!t) return 'Sin tipo';
     return this.accountTypes.find(at => at.value === t)?.label ?? t;
   }
 

@@ -46,7 +46,7 @@
         <img [src]="getFirstPhoto(house)" [alt]="house.description || house.code"
              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
 
-        <!-- Badge disponibilidad (solo si hay fecha seleccionada) -->
+        <!-- Badge disponibilidad -->
         <div class="absolute top-3 right-3">
           <span *ngIf="house.checkingAvailability"
                 class="flex items-center gap-1 px-3 py-1 bg-gray-500 text-white text-xs font-semibold rounded-full">
@@ -134,9 +134,12 @@
               {{ house.ownerUserName }}
             </p>
           </div>
-          <button class="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold
-                         hover:opacity-90 transition-opacity"
-                  style="background-color: var(--rhouses-accent)">
+          <!-- Botón navega a /houses/:id -->
+          <button
+            (click)="navigateToDetail(house.id)"
+            class="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-semibold
+                   hover:opacity-90 transition-opacity"
+            style="background-color: var(--rhouses-accent)">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
                  stroke="currentColor" stroke-width="2">
               <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>

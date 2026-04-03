@@ -1,5 +1,6 @@
-import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import { CountryHouseResponse, CountryHouseService, AvailabilityResponse } from '../../../../Services/CountryHouse/country-house.service';
 import { SearchParams } from '../hero-section/hero-section.component';
 
@@ -22,7 +23,8 @@ export class HouseGridComponent implements OnChanges {
 
   enrichedHouses: HouseWithAvailability[] = [];
 
-  constructor(private countryHouseService: CountryHouseService) {}
+  private router          = inject(Router);
+  private countryHouseService = inject(CountryHouseService);
 
   get empty(): boolean {
     return !this.loading && this.enrichedHouses.length === 0;
@@ -36,7 +38,6 @@ export class HouseGridComponent implements OnChanges {
         entireHouseAvailable: null,
         checkingAvailability: false
       }));
-      // Consultar disponibilidad solo si el usuario eligió fecha
       if (this.searchParams.fecha && this.searchParams.noches > 0) {
         this.enrichedHouses.forEach(h => this.loadAvailability(h));
       }
@@ -54,8 +55,8 @@ export class HouseGridComponent implements OnChanges {
     ).subscribe({
       next: (res) => {
         const avail: AvailabilityResponse = res?.data;
-        house.availabilityLoaded    = true;
-        house.checkingAvailability  = false;
+        house.availabilityLoaded   = true;
+        house.checkingAvailability = false;
         if (avail?.dailyAvailability) {
           const days = Object.values(avail.dailyAvailability);
           house.entireHouseAvailable = days.every(d => d.entireHouseStatus === 'FREE');
@@ -66,6 +67,10 @@ export class HouseGridComponent implements OnChanges {
         house.availabilityLoaded   = true;
       }
     });
+  }
+
+  navigateToDetail(houseId: string): void {
+    this.router.navigate(['/houses', houseId]);
   }
 
   getTotalBathrooms(house: CountryHouseResponse): number {
