@@ -182,6 +182,13 @@ public class CountryHouseServiceImpl implements CountryHouseService {
                 .stream().map(this::toResponse).collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<CountryHouseResponse> findByOwner(String ownerId) {
+        return countryHouseRepository.findByOwner_Id(ownerId)
+            .stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
     // ─── Disponibilidad ───────────────────────────────────────────────────────
 
     @Override

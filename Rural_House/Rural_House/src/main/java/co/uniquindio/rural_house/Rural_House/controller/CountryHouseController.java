@@ -136,6 +136,16 @@ public class CountryHouseController {
         return ResponseEntity.ok(ApiResponse.ok(countryHouseService.findAll()));
     }
 
+    /**
+     * GET /api/houses/owner/{ownerId}
+     * Lista todas las casas de un propietario (activas e inactivas).
+     */
+    @GetMapping("/owner/{ownerId}")
+    public ResponseEntity<ApiResponse<List<CountryHouseResponse>>> getByOwner(
+            @PathVariable String ownerId) {
+        return ResponseEntity.ok(ApiResponse.ok(countryHouseService.findByOwner(ownerId)));
+    }
+
     // ─── Disponibilidad ───────────────────────────────────────────────────────
 
     /**

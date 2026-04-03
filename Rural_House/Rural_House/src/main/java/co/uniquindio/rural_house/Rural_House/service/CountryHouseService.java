@@ -31,6 +31,7 @@ public interface CountryHouseService {
     CountryHouseResponse findByCode(String code);
     CountryHouseResponse findById(String id);
     List<CountryHouseResponse> findAll();
+    List<CountryHouseResponse> findByOwner(String ownerId);
 
     // Disponibilidad
     AvailabilityResponse checkAvailability(String houseCode, LocalDate checkIn, int nights);

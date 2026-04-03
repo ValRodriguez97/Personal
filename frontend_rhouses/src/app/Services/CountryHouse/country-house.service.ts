@@ -79,7 +79,6 @@ export class CountryHouseService {
 
   constructor(private http: HttpClient) {}
 
-  // Obtiene headers con JWT si existe en sessionStorage
   private getAuthHeaders(): HttpHeaders {
     const raw = sessionStorage.getItem('rhouses_user');
     let token = '';
@@ -97,6 +96,9 @@ export class CountryHouseService {
       : new HttpHeaders();
   }
 
+  // ── Búsquedas públicas ────────────────────────────────────────────────────
+
+  /** Lista todas las casas ACTIVAS (homepage) */
   findAll(): Observable<any> {
     return this.http.get(`${this.apiUrl}`);
   }
@@ -115,6 +117,19 @@ export class CountryHouseService {
 
   checkAvailability(code: string, checkIn: string, nights: number): Observable<any> {
     return this.http.get(`${this.apiUrl}/${code}/availability?checkIn=${checkIn}&nights=${nights}`);
+  }
+
+  // ── Operaciones del propietario ───────────────────────────────────────────
+
+  /**
+   * Lista TODAS las casas de un propietario (activas + desactivadas).
+   * Requiere el endpoint GET /api/houses/owner/{ownerId} en el backend.
+   */
+  findByOwner(ownerId: string): Observable<any> {
+    return this.http.get(
+      `${this.apiUrl}/owner/${ownerId}`,
+      { headers: this.getAuthHeaders() }
+    );
   }
 
   register(ownerId: string, payload: RegisterHousePayload): Observable<any> {
