@@ -57,6 +57,18 @@ export class MyHousesComponent implements OnInit {
   goToEdit(houseId: string):     void { this.router.navigate(['/edit-house', houseId]); }
   goToRegister():                void { this.router.navigate(['/register-house']); }
 
+  protected goToRentalPackages( houseId: string) {
+    const ownerId = this.authService.user()?.id;
+
+    if(!ownerId){
+      this.toastr.error('No se pudo identificar al propietario', 'Error');
+      return;
+    }
+    this.router.navigate(['/rental-packages', ownerId, houseId]);
+  }
+  protected getOwnerId() {
+    return this.authService.user()?.id;
+  }
   openDeactivateModal(house: CountryHouseResponse): void {
     this.houseToDeactivate  = house;
     this.showDeactivateModal = true;
@@ -92,6 +104,24 @@ export class MyHousesComponent implements OnInit {
     });
   }
 
+  reactivateHouse(house: CountryHouseResponse): void {
+    const ownerId = this.authService.user()?.id;
+    if (!ownerId) return;
+
+    this.houseSvc.reactivate(ownerId, house.id).subscribe({
+      next: () => {
+        this.toastr.success(`"${house.code}" ha sido reactivada`, '¡Reactivada!');
+        const idx = this.houses.findIndex(h => h.id === house.id);
+        if (idx !== -1) {
+          this.houses[idx] = { ...this.houses[idx], stateCountryHouse: 'ACTIVE' };
+        }
+      },
+      error: (err) => {
+        this.toastr.error(err?.error?.message ?? 'Error al reactivar la casa', 'Error');
+      }
+    });
+  }
+
   getFirstPhoto(house: CountryHouseResponse): string {
     return house.photo?.[0]?.url?.trim()
       ? house.photo[0].url
@@ -105,4 +135,5 @@ export class MyHousesComponent implements OnInit {
   isActive(house: CountryHouseResponse): boolean {
     return house.stateCountryHouse === 'ACTIVE';
   }
+
 }

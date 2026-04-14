@@ -6,7 +6,11 @@ import { FilterSidebarComponent } from './components/filter-sidebar/filter-sideb
 import { FilterTriggerComponent } from './components/filter-trigger/filter-trigger.component';
 import { HouseGridComponent }     from './components/house-grid/house-grid.component';
 import { FooterComponent }        from './components/footer/footer.component';
-import { CountryHouseResponse, CountryHouseService } from '../../Services/CountryHouse/country-house.service';
+import {
+  ApiResponse,
+  CountryHouseResponse,
+  CountryHouseService
+} from '../../Services/CountryHouse/country-house.service';
 
 @Component({
   selector: 'app-homepage',
@@ -25,6 +29,7 @@ import { CountryHouseResponse, CountryHouseService } from '../../Services/Countr
 export class HomepageComponent implements OnInit {
   isFilterOpen = false;
   isLoading    = true;
+  showingSuggestions = false; // <-- NUEVA VARIABLE: Para mostrar el aviso de sugerencias
 
   allHouses:      CountryHouseResponse[] = [];
   filteredHouses: CountryHouseResponse[] = [];
@@ -55,6 +60,7 @@ export class HomepageComponent implements OnInit {
     this.filteredHouses = event.houses;
     this.searchParams   = event.params;
     this.isLoading      = false;
+    this.showingSuggestions = false; // <-- Reseteamos la variable al buscar desde el Hero
   }
 
   onSearchLoading(): void {
@@ -64,5 +70,38 @@ export class HomepageComponent implements OnInit {
   // El sidebar filtra localmente sobre allHouses
   onFiltered(houses: CountryHouseResponse[]): void {
     this.filteredHouses = houses;
+    this.showingSuggestions = false;
+  }
+
+  onFilterApplied(filters: any): void {
+    // 1. Iniciamos carga y quitamos sugerencias anteriores
+    this.isLoading = true;
+    this.showingSuggestions = false;
+
+    // 2. Llamamos al servicio pasando el objeto 'filters' completo
+    // Nota: Ahora pasamos 'filters' como un solo argumento
+    this.countryHouseService.searchHouses(filters).subscribe({
+      next: (res: ApiResponse<CountryHouseResponse[]>) => {
+        const foundHouses = res?.data ?? [];
+
+        if (foundHouses.length > 0) {
+          // Se encontraron casas que coinciden con los filtros
+          this.filteredHouses = foundHouses;
+          this.showingSuggestions = false;
+        } else {
+          // No hay resultados exactos: mostramos todas como sugerencia
+          this.showingSuggestions = true;
+          this.filteredHouses = [...this.allHouses];
+        }
+        this.isLoading = false;
+      },
+      error: (err) => {
+        console.error('Error en búsqueda avanzada:', err);
+        // En caso de error, volvemos al estado inicial
+        this.showingSuggestions = true;
+        this.filteredHouses = [...this.allHouses];
+        this.isLoading = false;
+      }
+    });
   }
 }

@@ -20,10 +20,9 @@
                stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
         </a>
         <div class="flex-1">
-          <!-- Badge "Editando" -->
           <div class="flex items-center gap-2 mb-0.5">
             <span class="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full"
-                  style="background-color: #AA4465/10; color: #AA4465; background: rgba(170,68,101,0.12)">
+                  style="background: rgba(170,68,101,0.12); color: #AA4465">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
                    stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
               Editando casa
@@ -35,7 +34,6 @@
         </div>
         <span class="text-sm font-bold" style="color: var(--rhouses-accent)">{{ step }}/4</span>
       </div>
-      <!-- Barra progreso -->
       <div class="w-full bg-gray-200 h-2 rounded-full">
         <div class="h-2 rounded-full transition-all duration-500"
              style="background-color: #AA4465"
@@ -107,10 +105,18 @@
       <!-- ══ STEP 2: Habitaciones ══ -->
       <div *ngIf="step === 2" class="animate-slide-in space-y-4">
         <div class="flex items-center justify-between mb-2">
-          <h2 class="text-lg font-black" style="color: var(--rhouses-secondary-dark)">
-            Habitaciones 🛏️ <span class="text-sm font-normal text-gray-400">(mín. 3)</span>
-          </h2>
-          <button (click)="addBedroom()"
+          <div>
+            <h2 class="text-lg font-black" style="color: var(--rhouses-secondary-dark)">
+              Habitaciones 🛏️ <span class="text-sm font-normal text-gray-400">(mín. 3)</span>
+            </h2>
+            <p class="text-sm mt-0.5">
+              <span class="font-semibold" style="color: var(--rhouses-secondary-dark)">
+                {{ form.bedrooms.length }} habitación{{ form.bedrooms.length !== 1 ? 'es' : '' }}
+              </span>
+              <span *ngIf="form.bedrooms.length >= 3" class="text-green-600 font-semibold ml-2">✓ Mínimo cumplido</span>
+            </p>
+          </div>
+          <button (click)="addBedroom()" type="button"
             class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-bold hover:opacity-90"
             style="background-color: #AA4465">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -119,68 +125,90 @@
           </button>
         </div>
 
-        <p *ngIf="errors['bedrooms']"     class="text-red-500 text-sm">{{ errors['bedrooms'] }}</p>
-        <p *ngIf="errors['bedroomCodes']" class="text-red-500 text-sm">{{ errors['bedroomCodes'] }}</p>
-        <p *ngIf="errors['bedroomNull']"  class="text-red-500 text-sm">{{ errors['bedroomNull'] }}</p>
+        <p *ngIf="errors['bedrooms']"     class="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{{ errors['bedrooms'] }}</p>
+        <p *ngIf="errors['bedroomCodes']" class="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{{ errors['bedroomCodes'] }}</p>
+        <p *ngIf="errors['bedroomNull']"  class="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{{ errors['bedroomNull'] }}</p>
 
         <div *ngIf="form.bedrooms.length === 0"
              class="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">
           Pulsa "Añadir" para agregar habitaciones
         </div>
 
-        <div *ngFor="let bedroom of form.bedrooms; let i = index"
-             class="border border-gray-200 rounded-xl p-5 space-y-4 animate-fade-in">
-          <div class="flex items-center justify-between">
-            <h3 class="font-bold text-sm" style="color: var(--rhouses-secondary-dark)">Habitación {{ i + 1 }}</h3>
-            <button (click)="removeBedroom(i)"
-              class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                   stroke="currentColor" stroke-width="2">
-                <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-              </svg>
-            </button>
-          </div>
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div>
-              <label class="block text-xs font-semibold mb-1 text-gray-600">Código único *</label>
-              <input type="number" placeholder="Ej: 1" [(ngModel)]="bedroom.bedroomCode"
-                     class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none
-                            focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465]"/>
+        <!--
+          CLAVE: usamos índices numéricos (i) con getters/setters explícitos
+          en lugar de ngModel sobre el objeto bedroom directamente.
+          Esto evita que Angular pierda las referencias al re-renderizar.
+        -->
+        <ng-container *ngFor="let bedroom of form.bedrooms; let i = index">
+          <div class="border border-gray-200 rounded-xl p-5 space-y-4 animate-fade-in">
+            <div class="flex items-center justify-between">
+              <h3 class="font-bold text-sm" style="color: var(--rhouses-secondary-dark)">
+                Habitación {{ i + 1 }}
+                <span *ngIf="getBedroomCode(i)"
+                      class="text-xs font-normal text-gray-400 ml-1">(código: {{ getBedroomCode(i) }})</span>
+              </h3>
+              <button type="button" (click)="removeBedroom(i)"
+                class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2">
+                  <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                </svg>
+              </button>
             </div>
-            <div>
-              <label class="block text-xs font-semibold mb-1 text-gray-600">Nº de camas</label>
-              <input type="number" min="1" max="6"
-                     [ngModel]="bedroom.numberBeds"
-                     (ngModelChange)="updateBedTypes(bedroom, $event)"
-                     class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none
-                            focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465]"/>
+
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-semibold mb-1 text-gray-600">Código único *</label>
+                <input
+                  type="number"
+                  placeholder="Ej: 101"
+                  [value]="getBedroomCode(i)"
+                  (input)="setBedroomCode(i, $any($event.target).value)"
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none
+                         focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465]"/>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold mb-1 text-gray-600">Nº de camas</label>
+                <input
+                  type="number" min="1" max="6"
+                  [value]="getNumberBeds(i)"
+                  (input)="setNumberBeds(i, $any($event.target).value)"
+                  class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none
+                         focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465]"/>
+              </div>
+              <div class="flex flex-col justify-center">
+                <label class="text-xs font-semibold mb-1 text-gray-600">Baño privado</label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    [checked]="getBathroom(i)"
+                    (change)="setBathroom(i, $any($event.target).checked)"
+                    class="rounded"/>
+                  <span class="text-sm text-gray-600">Tiene baño</span>
+                </label>
+              </div>
             </div>
-            <div class="flex flex-col justify-center">
-              <label class="text-xs font-semibold mb-1 text-gray-600">Baño privado</label>
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" [(ngModel)]="bedroom.bathroom" class="rounded"/>
-                <span class="text-sm text-gray-600">Tiene baño</span>
+
+            <div *ngIf="getNumberBeds(i) > 0">
+              <label class="block text-xs font-semibold mb-2 text-gray-600">
+                Tipo de camas ({{ getNumberBeds(i) }} cama{{ getNumberBeds(i) > 1 ? 's' : '' }})
               </label>
-            </div>
-          </div>
-          <div *ngIf="bedroom.numberBeds > 0">
-            <label class="block text-xs font-semibold mb-2 text-gray-600">
-              Tipo de camas ({{ bedroom.numberBeds }} cama{{ bedroom.numberBeds > 1 ? 's' : '' }})
-            </label>
-            <div class="flex flex-wrap gap-2">
-              <div *ngFor="let idx of bedRange(bedroom.numberBeds)" class="flex items-center gap-1">
-                <span class="text-xs text-gray-400">Cama {{ idx + 1 }}:</span>
-                <select [ngModel]="bedroom.typesOfBeds[idx]"
-                        (ngModelChange)="setBedType(bedroom, idx, $event)"
-                        class="px-2 py-1 border border-gray-200 rounded-lg text-xs outline-none
-                               focus:ring-1 focus:ring-[#AA4465]">
-                  <option value="SIMPLE">Simple</option>
-                  <option value="DOUBLE">Doble</option>
-                </select>
+              <div class="flex flex-wrap gap-2">
+                <div *ngFor="let j of bedRange(getNumberBeds(i))" class="flex items-center gap-1">
+                  <span class="text-xs text-gray-400">Cama {{ j + 1 }}:</span>
+                  <select
+                    [value]="getBedType(i, j)"
+                    (change)="setBedType(i, j, $any($event.target).value)"
+                    class="px-2 py-1 border border-gray-200 rounded-lg text-xs outline-none
+                           focus:ring-1 focus:ring-[#AA4465]">
+                    <option value="SIMPLE">Simple</option>
+                    <option value="DOUBLE">Doble</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </ng-container>
       </div>
 
       <!-- ══ STEP 3: Cocinas y fotos ══ -->
@@ -192,7 +220,7 @@
             <h2 class="text-lg font-black" style="color: var(--rhouses-secondary-dark)">
               Cocinas 🍳 <span class="text-sm font-normal text-gray-400">(mín. 1)</span>
             </h2>
-            <button (click)="addKitchen()"
+            <button type="button" (click)="addKitchen()"
               class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-white text-sm font-bold hover:opacity-90"
               style="background-color: #AA4465">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -200,34 +228,45 @@
               Añadir
             </button>
           </div>
-          <p *ngIf="errors['kitchens']" class="text-red-500 text-sm mb-2">{{ errors['kitchens'] }}</p>
+          <p *ngIf="errors['kitchens']" class="text-red-500 text-sm mb-2 bg-red-50 px-3 py-2 rounded-lg">{{ errors['kitchens'] }}</p>
 
           <div *ngIf="form.diningRooms.length === 0"
                class="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center text-gray-400 text-sm">
             Pulsa "Añadir" para agregar una cocina
           </div>
 
-          <div *ngFor="let kitchen of form.diningRooms; let i = index"
-               class="border border-gray-200 rounded-xl p-4 mb-3 animate-fade-in">
-            <div class="flex items-center justify-between mb-3">
-              <h3 class="font-bold text-sm" style="color: var(--rhouses-secondary-dark)">Cocina {{ i + 1 }}</h3>
-              <button (click)="removeKitchen(i)"
-                class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2">
-                  <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-                </svg>
-              </button>
+          <ng-container *ngFor="let kitchen of form.diningRooms; let i = index">
+            <div class="border border-gray-200 rounded-xl p-4 mb-3 animate-fade-in">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-bold text-sm" style="color: var(--rhouses-secondary-dark)">Cocina {{ i + 1 }}</h3>
+                <button type="button" (click)="removeKitchen(i)"
+                  class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="flex gap-6">
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    [checked]="getDishWasher(i)"
+                    (change)="setDishWasher(i, $any($event.target).checked)"
+                    class="rounded"/>
+                  Lavavajillas
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
+                  <input
+                    type="checkbox"
+                    [checked]="getWashingMachine(i)"
+                    (change)="setWashingMachine(i, $any($event.target).checked)"
+                    class="rounded"/>
+                  Lavadora
+                </label>
+              </div>
             </div>
-            <div class="flex gap-6">
-              <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
-                <input type="checkbox" [(ngModel)]="kitchen.dishWasher" class="rounded"/>Lavavajillas
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
-                <input type="checkbox" [(ngModel)]="kitchen.washingMachine" class="rounded"/>Lavadora
-              </label>
-            </div>
-          </div>
+          </ng-container>
         </div>
 
         <!-- Fotos -->
@@ -236,7 +275,7 @@
             <h2 class="text-lg font-black" style="color: var(--rhouses-secondary-dark)">
               Fotos 📷 <span class="text-sm font-normal text-red-500">* (mín. 1)</span>
             </h2>
-            <button (click)="addPhoto()"
+            <button type="button" (click)="addPhoto()"
               class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold border-2 hover:bg-gray-50"
               style="border-color: #AA4465; color: #AA4465">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -244,32 +283,41 @@
               Añadir foto
             </button>
           </div>
-          <p *ngIf="errors['photos']" class="text-red-500 text-sm mb-2">{{ errors['photos'] }}</p>
+          <p *ngIf="errors['photos']" class="text-red-500 text-sm mb-2 bg-red-50 px-3 py-2 rounded-lg">{{ errors['photos'] }}</p>
 
           <div *ngIf="form.photo.length === 0"
                class="border-2 border-dashed border-red-200 bg-red-50 rounded-xl p-6 text-center text-red-400 text-sm">
             ⚠️ Debes añadir al menos 1 foto con una URL válida
           </div>
 
-          <div *ngFor="let photo of form.photo; let i = index"
-               class="border border-gray-200 rounded-xl p-4 mb-3 animate-fade-in space-y-3">
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-semibold text-gray-600">Foto {{ i + 1 }}</span>
-              <button (click)="removePhoto(i)"
-                class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2">
-                  <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-                </svg>
-              </button>
+          <ng-container *ngFor="let photo of form.photo; let i = index">
+            <div class="border border-gray-200 rounded-xl p-4 mb-3 animate-fade-in space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-semibold text-gray-600">Foto {{ i + 1 }}</span>
+                <button type="button" (click)="removePhoto(i)"
+                  class="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                  </svg>
+                </button>
+              </div>
+              <input
+                type="url"
+                placeholder="https://ejemplo.com/foto.jpg"
+                [value]="getPhotoUrl(i)"
+                (input)="setPhotoUrl(i, $any($event.target).value)"
+                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none
+                       focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465]"/>
+              <input
+                type="text"
+                placeholder="Descripción (opcional)"
+                [value]="getPhotoDesc(i)"
+                (input)="setPhotoDesc(i, $any($event.target).value)"
+                class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none
+                       focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465]"/>
             </div>
-            <input type="url" placeholder="https://ejemplo.com/foto.jpg" [(ngModel)]="photo.url"
-                   class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none
-                          focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465]"/>
-            <input type="text" placeholder="Descripción (opcional)" [(ngModel)]="photo.description"
-                   class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none
-                          focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465]"/>
-          </div>
+          </ng-container>
         </div>
       </div>
 
@@ -279,11 +327,10 @@
 
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 text-sm text-amber-800">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2" class="shrink-0 mt-0.5"
-               style="color: #AA4465">
+               stroke="currentColor" stroke-width="2" class="shrink-0 mt-0.5" style="color: #AA4465">
             <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
           </svg>
-          <p>Estás a punto de guardar los cambios de la casa <strong>{{ form.code }}</strong>. Esta acción actualizará todos los datos.</p>
+          <p>Estás a punto de guardar los cambios de la casa <strong>{{ form.code }}</strong>.</p>
         </div>
 
         <div class="bg-gray-50 rounded-xl p-5 space-y-3 text-sm">

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import {HttpClient, HttpHeaders, HttpParams} from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export interface CountryHouseResponse {
@@ -35,6 +35,12 @@ export interface PhotoResponse {
   id: string;
   url: string;
   description: string;
+}
+
+
+export interface ApiResponse<T> {
+  message: String;
+  data: T;
 }
 
 export interface AvailabilityResponse {
@@ -98,7 +104,6 @@ export class CountryHouseService {
 
   // ── Búsquedas públicas ────────────────────────────────────────────────────
 
-  /** Lista todas las casas ACTIVAS (homepage) */
   findAll(): Observable<any> {
     return this.http.get(`${this.apiUrl}`);
   }
@@ -121,10 +126,6 @@ export class CountryHouseService {
 
   // ── Operaciones del propietario ───────────────────────────────────────────
 
-  /**
-   * Lista TODAS las casas de un propietario (activas + desactivadas).
-   * Requiere el endpoint GET /api/houses/owner/{ownerId} en el backend.
-   */
   findByOwner(ownerId: string): Observable<any> {
     return this.http.get(
       `${this.apiUrl}/owner/${ownerId}`,
@@ -155,11 +156,46 @@ export class CountryHouseService {
     );
   }
 
-  addRentalPackage(ownerId: string, houseId: string, payload: any): Observable<any> {
-    return this.http.post(
-      `${this.apiUrl}/${houseId}/packages?ownerId=${ownerId}`,
-      payload,
+  /** PUT /api/houses/{houseId}/reactivate?ownerId={id} */
+  reactivate(ownerId: string, houseId: string): Observable<any> {
+    return this.http.put(
+      `${this.apiUrl}/${houseId}/reactivate?ownerId=${ownerId}`,
+      {},
       { headers: this.getAuthHeaders() }
     );
   }
+
+  addRentalPackage(ownerId: string, houseId: string, pkg: any): Observable<ApiResponse<any>> {
+    // El backend espera ownerId como @RequestParam (?ownerId=...)
+    // y houseId como @PathVariable (/{houseId}/packages)
+    return this.http.post<ApiResponse<any>>(
+      `${this.apiUrl}/${houseId}/packages?ownerId=${ownerId}`,
+      pkg
+    );
+  }
+  searchHouses(params: any): Observable<ApiResponse<CountryHouseResponse[]>> {
+    // 1. Filtramos los parámetros
+    // Eliminamos nulos, vacíos, false (para los booleanos que no se marcan)
+    // y mantenemos el 0 solo si es un número válido, aunque para filtros min... suele ser mejor ignorar el 0.
+    const queryParams = Object.keys(params)
+      .filter(key =>
+        params[key] !== null &&
+        params[key] !== undefined &&
+        params[key] !== '' &&
+        params[key] !== false &&
+        params[key] !== 0 // Omitimos ceros para que el backend use sus valores por defecto
+      )
+      .reduce((obj, key) => {
+        obj[key] = params[key];
+        return obj;
+      }, {} as any);
+
+    // 2. Retornamos la petición con el tipo de dato correcto
+    return this.http.get<ApiResponse<CountryHouseResponse[]>>(`${this.apiUrl}/search`, {
+      params: queryParams
+    });
+
+  }
+
+
 }

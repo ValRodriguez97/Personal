@@ -20,6 +20,7 @@ public interface CountryHouseService {
     CountryHouseResponse register(String ownerId, CountryHouseRequest request);
     CountryHouseResponse update(String ownerId, String houseId, CountryHouseRequest request);
     void deactivate(String ownerId, String houseId);
+    void reactivate(String ownerId, String houseId);
 
     // Paquetes de alquiler
     RentalPackageResponse addRentalPackage(String ownerId, String houseId, RentalPackageRequest request);
@@ -28,6 +29,18 @@ public interface CountryHouseService {
 
     // Búsquedas públicas
     List<CountryHouseResponse> findByPopulation(String populationName);
+    
+    List<CountryHouseResponse> searchByFilters(
+        String populationName, 
+        String code,
+        Integer minBedrooms, 
+        Integer minBathrooms,
+        Integer minKitchens,
+        Integer minGaragePlaces,
+        Boolean hasPrivateBathroom,
+        Boolean hasDishwasher,
+        Boolean hasWashingMachine,
+        String bedType);
     CountryHouseResponse findByCode(String code);
     CountryHouseResponse findById(String id);
     List<CountryHouseResponse> findAll();
@@ -43,4 +56,9 @@ public interface CountryHouseService {
 
     //Fotos
     PhotoResponse addPhoto(String ownerId, String houseId, PhotoRequest request);
+
+    //Sugerencias
+    List<CountryHouseResponse> suggestAlternatives(String houseCode, LocalDate checkIn, int nights);
+
+    List<RentalPackageResponse> getRentalPackagesByHouse(String houseId);
 }

@@ -62,14 +62,12 @@ export class EditHouseComponent implements OnInit {
       this.router.navigate(['/']);
       return;
     }
-
     this.houseId = this.route.snapshot.paramMap.get('id') ?? '';
     if (!this.houseId) {
       this.toastr.error('ID de casa no encontrado', 'Error');
       this.router.navigate(['/my-houses']);
       return;
     }
-
     this.loadHouseData();
   }
 
@@ -87,17 +85,23 @@ export class EditHouseComponent implements OnInit {
         this.form.garagePlaces     = house.garagePlaces ?? 0;
         this.form.populationName   = house.populationName ?? '';
 
-        this.form.bedrooms = (house.bedrooms ?? []).map((b: any) => ({
-          bedroomCode: b.bedroomCode,
-          bathroom:    b.bathroom ?? false,
-          numberBeds:  b.numberBeds ?? 1,
-          typesOfBeds: b.typesOfBeds ?? ['SIMPLE']
+        // Ordenar habitaciones por código al cargar
+        const sorted = [...(house.bedrooms ?? [])].sort(
+          (a: any, b: any) => (Number(a.bedroomCode) || 0) - (Number(b.bedroomCode) || 0)
+        );
+        this.form.bedrooms = sorted.map((b: any) => ({
+          bedroomCode: b.bedroomCode != null ? Number(b.bedroomCode) : null,
+          bathroom:    !!b.bathroom,
+          numberBeds:  Number(b.numberBeds) || 1,
+          typesOfBeds: Array.isArray(b.typesOfBeds) && b.typesOfBeds.length > 0
+                         ? [...b.typesOfBeds]
+                         : ['SIMPLE']
         }));
 
         this.form.diningRooms = (house.diningRooms ?? []).map((k: any) => ({
           idCocina:       k.idCocina ?? ('COC-' + Date.now()),
-          dishWasher:     k.dishWasher ?? false,
-          washingMachine: k.washingMachine ?? false
+          dishWasher:     !!k.dishWasher,
+          washingMachine: !!k.washingMachine
         }));
 
         this.form.photo = (house.photo ?? []).map((p: any) => ({
@@ -115,6 +119,8 @@ export class EditHouseComponent implements OnInit {
     });
   }
 
+  // ── Getters ───────────────────────────────────────────────────────────────
+
   get progressWidth(): number { return (this.step / 4) * 100; }
 
   get stepTitle(): string {
@@ -131,39 +137,109 @@ export class EditHouseComponent implements OnInit {
     return this.form.photo.filter(p => p.url?.trim()).length;
   }
 
-  // ── Habitaciones ──────────────────────────────────────────────────────────
+  bedRange(n: number): number[] {
+    return Array.from({ length: Math.max(0, n) }, (_, i) => i);
+  }
+
+  // ── Habitaciones: getters/setters por índice ──────────────────────────────
+  // Usar getters/setters explícitos evita que ngModel pierda la referencia
+  // al objeto cuando Angular re-renderiza el *ngFor al mutar el array.
+
+  getBedroomCode(i: number): string {
+    const v = this.form.bedrooms[i]?.bedroomCode;
+    return v != null ? String(v) : '';
+  }
+  setBedroomCode(i: number, val: string): void {
+    if (!this.form.bedrooms[i]) return;
+    this.form.bedrooms[i].bedroomCode = val !== '' ? Number(val) : null;
+    delete this.errors['bedroomNull'];
+    delete this.errors['bedroomCodes'];
+  }
+
+  getBathroom(i: number): boolean      { return this.form.bedrooms[i]?.bathroom ?? false; }
+  setBathroom(i: number, v: boolean): void {
+    if (this.form.bedrooms[i]) this.form.bedrooms[i].bathroom = v;
+  }
+
+  getNumberBeds(i: number): number     { return this.form.bedrooms[i]?.numberBeds ?? 1; }
+  setNumberBeds(i: number, val: string): void {
+    if (!this.form.bedrooms[i]) return;
+    const n = Math.max(1, Math.min(6, Number(val) || 1));
+    const types = this.form.bedrooms[i].typesOfBeds;
+    while (types.length < n) types.push('SIMPLE');
+    this.form.bedrooms[i].typesOfBeds = types.slice(0, n);
+    this.form.bedrooms[i].numberBeds  = n;
+  }
+
+  getBedType(i: number, j: number): string {
+    return this.form.bedrooms[i]?.typesOfBeds[j] ?? 'SIMPLE';
+  }
+  setBedType(i: number, j: number, type: string): void {
+    if (this.form.bedrooms[i]) this.form.bedrooms[i].typesOfBeds[j] = type;
+  }
 
   addBedroom(): void {
-    this.form.bedrooms.push({ bedroomCode: null, bathroom: false, numberBeds: 1, typesOfBeds: ['SIMPLE'] });
+    // Spread para forzar nueva referencia del array → Angular detecta el cambio
+    this.form.bedrooms = [
+      ...this.form.bedrooms,
+      { bedroomCode: null, bathroom: false, numberBeds: 1, typesOfBeds: ['SIMPLE'] }
+    ];
+    delete this.errors['bedrooms'];
+    delete this.errors['bedroomNull'];
+    delete this.errors['bedroomCodes'];
   }
 
-  removeBedroom(i: number): void { this.form.bedrooms.splice(i, 1); }
-
-  updateBedTypes(bedroom: BedroomForm, count: number): void {
-    const n = Math.max(1, count);
-    while (bedroom.typesOfBeds.length < n) bedroom.typesOfBeds.push('SIMPLE');
-    bedroom.typesOfBeds = bedroom.typesOfBeds.slice(0, n);
-    bedroom.numberBeds  = n;
+  removeBedroom(i: number): void {
+    this.form.bedrooms = this.form.bedrooms.filter((_, idx) => idx !== i);
   }
 
-  setBedType(bedroom: BedroomForm, idx: number, type: string): void {
-    bedroom.typesOfBeds[idx] = type;
+  // ── Cocinas: getters/setters por índice ───────────────────────────────────
+
+  getDishWasher(i: number): boolean    { return this.form.diningRooms[i]?.dishWasher ?? false; }
+  setDishWasher(i: number, v: boolean): void {
+    if (this.form.diningRooms[i]) this.form.diningRooms[i].dishWasher = v;
   }
 
-  bedRange(n: number): number[] { return Array.from({ length: n }, (_, i) => i); }
-
-  // ── Cocinas ───────────────────────────────────────────────────────────────
+  getWashingMachine(i: number): boolean { return this.form.diningRooms[i]?.washingMachine ?? false; }
+  setWashingMachine(i: number, v: boolean): void {
+    if (this.form.diningRooms[i]) this.form.diningRooms[i].washingMachine = v;
+  }
 
   addKitchen(): void {
-    this.form.diningRooms.push({ idCocina: 'COC-' + Date.now(), dishWasher: false, washingMachine: false });
+    this.form.diningRooms = [
+      ...this.form.diningRooms,
+      { idCocina: 'COC-' + Date.now(), dishWasher: false, washingMachine: false }
+    ];
+    delete this.errors['kitchens'];
   }
 
-  removeKitchen(i: number): void { this.form.diningRooms.splice(i, 1); }
+  removeKitchen(i: number): void {
+    this.form.diningRooms = this.form.diningRooms.filter((_, idx) => idx !== i);
+  }
 
-  // ── Fotos ─────────────────────────────────────────────────────────────────
+  // ── Fotos: getters/setters por índice ─────────────────────────────────────
 
-  addPhoto(): void { this.form.photo.push({ url: '', description: '' }); }
-  removePhoto(i: number): void { this.form.photo.splice(i, 1); }
+  getPhotoUrl(i: number): string         { return this.form.photo[i]?.url ?? ''; }
+  setPhotoUrl(i: number, v: string): void {
+    if (this.form.photo[i]) {
+      this.form.photo[i].url = v;
+      delete this.errors['photos'];
+    }
+  }
+
+  getPhotoDesc(i: number): string        { return this.form.photo[i]?.description ?? ''; }
+  setPhotoDesc(i: number, v: string): void {
+    if (this.form.photo[i]) this.form.photo[i].description = v;
+  }
+
+  addPhoto(): void {
+    this.form.photo = [...this.form.photo, { url: '', description: '' }];
+    delete this.errors['photos'];
+  }
+
+  removePhoto(i: number): void {
+    this.form.photo = this.form.photo.filter((_, idx) => idx !== i);
+  }
 
   // ── Navegación ────────────────────────────────────────────────────────────
 
@@ -172,12 +248,7 @@ export class EditHouseComponent implements OnInit {
     if (this.step === 1 && !this.validateStep1()) return;
     if (this.step === 2 && !this.validateStep2()) return;
     if (this.step === 3 && !this.validateStep3()) return;
-
-    if (this.step < 4) {
-      this.step++;
-    } else {
-      this.submit();
-    }
+    if (this.step < 4) { this.step++; } else { this.submit(); }
   }
 
   onBack(): void {
@@ -190,7 +261,7 @@ export class EditHouseComponent implements OnInit {
     const e: Record<string, string> = {};
     if (!this.form.code.trim())           e['code']           = 'El código es obligatorio';
     if (!this.form.populationName.trim()) e['populationName'] = 'La población es obligatoria';
-    if ((this.form.privateBathrooms + this.form.publicBathrooms) < 2)
+    if ((Number(this.form.privateBathrooms) + Number(this.form.publicBathrooms)) < 2)
       e['bathrooms'] = 'La casa debe tener al menos 2 baños en total';
     this.errors = e;
     return Object.keys(e).length === 0;
@@ -198,23 +269,29 @@ export class EditHouseComponent implements OnInit {
 
   validateStep2(): boolean {
     const e: Record<string, string> = {};
-    if (this.form.bedrooms.length < 3)
+    if (this.form.bedrooms.length < 3) {
       e['bedrooms'] = 'Debes tener al menos 3 habitaciones';
-    const codes = this.form.bedrooms.map(b => b.bedroomCode);
-    if (codes.some(c => c === null || c === undefined))
-      e['bedroomNull'] = 'Todas las habitaciones deben tener un código';
-    else if (codes.some((c, i) => codes.indexOf(c) !== i))
+      this.errors = e; return false;
+    }
+    if (this.form.bedrooms.some(b => b.bedroomCode === null || b.bedroomCode === undefined)) {
+      e['bedroomNull'] = 'Todas las habitaciones deben tener un código numérico';
+      this.errors = e; return false;
+    }
+    const codes = this.form.bedrooms.map(b => Number(b.bedroomCode));
+    if (new Set(codes).size !== codes.length) {
       e['bedroomCodes'] = 'Los códigos de habitación deben ser únicos';
+      this.errors = e; return false;
+    }
     this.errors = e;
-    return Object.keys(e).length === 0;
+    return true;
   }
 
   validateStep3(): boolean {
     const e: Record<string, string> = {};
     if (this.form.diningRooms.length < 1)
       e['kitchens'] = 'Debes tener al menos 1 cocina';
-    const validPhotos = this.form.photo.filter(p => p.url?.trim());
-    if (validPhotos.length === 0)
+    const valid = this.form.photo.filter(p => p.url?.trim());
+    if (valid.length === 0)
       e['photos'] = 'Debes tener al menos 1 foto con URL válida';
     else if (this.form.photo.some(p => !p.url?.trim()))
       e['photos'] = 'Todas las fotos añadidas deben tener una URL';
@@ -231,22 +308,17 @@ export class EditHouseComponent implements OnInit {
       this.router.navigate(['/login']);
       return;
     }
-
     this.isLoading = true;
-
-    const validPhotos = this.form.photo
-      .filter(p => p.url?.trim())
-      .map(p => ({ url: p.url.trim(), description: p.description.trim() }));
 
     const payload: RegisterHousePayload = {
       code:             this.form.code.trim(),
       description:      this.form.description.trim(),
-      privateBathrooms: this.form.privateBathrooms,
-      publicBathrooms:  this.form.publicBathrooms,
-      garagePlaces:     this.form.garagePlaces,
+      privateBathrooms: Number(this.form.privateBathrooms),
+      publicBathrooms:  Number(this.form.publicBathrooms),
+      garagePlaces:     Number(this.form.garagePlaces),
       populationName:   this.form.populationName.trim(),
       bedrooms: this.form.bedrooms.map(b => ({
-        bedroomCode:  b.bedroomCode as number,
+        bedroomCode:  Number(b.bedroomCode),
         bathroom:     b.bathroom,
         numberBeds:   b.numberBeds,
         typesOfBeds:  b.typesOfBeds
@@ -256,7 +328,9 @@ export class EditHouseComponent implements OnInit {
         dishWasher:     k.dishWasher,
         washingMachine: k.washingMachine
       })),
-      photo: validPhotos
+      photo: this.form.photo
+        .filter(p => p.url?.trim())
+        .map(p => ({ url: p.url.trim(), description: p.description.trim() }))
     };
 
     this.countryHouseSvc.update(ownerId, this.houseId, payload).subscribe({
