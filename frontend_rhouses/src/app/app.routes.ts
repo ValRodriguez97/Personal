@@ -18,6 +18,6 @@ export const routes: Routes = [
   { path: 'houses/:id',                                    component: HouseDetailComponent   },
   { path: 'my-houses',                                     component: MyHousesComponent      },
   { path: 'edit-house/:id',                                component: EditHouseComponent     },
-  { path: 'rental-packages/:ownerid/:houseid',             component: RentalPackageComponent },
+  { path: 'rental-packages/:ownerid',             component: RentalPackageComponent },
   { path: '**',                                            redirectTo: '', pathMatch: 'full'  }
 ];

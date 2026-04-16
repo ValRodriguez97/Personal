@@ -9,7 +9,6 @@
 
     <!-- Hero del propietario -->
     <div class="relative overflow-hidden" style="background: linear-gradient(135deg, #333745 0%, #1a1d26 60%, #2a1520 100%)">
-      <!-- Decoración de fondo -->
       <div class="absolute inset-0 opacity-10">
         <div class="absolute top-0 right-0 w-96 h-96 rounded-full" style="background: radial-gradient(circle, #AA4465, transparent); transform: translate(30%, -30%)"></div>
         <div class="absolute bottom-0 left-0 w-72 h-72 rounded-full" style="background: radial-gradient(circle, #2CA58D, transparent); transform: translate(-30%, 30%)"></div>
@@ -25,13 +24,6 @@
               Gestiona tus propiedades, paquetes de alquiler y reservas desde aquí.
             </p>
           </div>
-          <button (click)="goToRegisterHouse()"
-            class="flex items-center gap-3 px-6 py-4 rounded-2xl text-white font-bold text-base transition-all hover:scale-105 shadow-xl self-start md:self-auto"
-            style="background: linear-gradient(135deg, #AA4465, #8c3552)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-            Registrar nueva casa
-          </button>
         </div>
       </div>
     </div>
@@ -42,7 +34,7 @@
 
         <h2 class="text-xl font-black mb-6" style="color: var(--rhouses-secondary-dark)">Accesos rápidos</h2>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
 
           <!-- Mis casas -->
           <button (click)="goToMyHouses()"
@@ -80,6 +72,29 @@
             <p class="text-sm text-gray-500 leading-relaxed">Publica una nueva propiedad para empezar a recibir reservas de clientes.</p>
             <div class="flex items-center gap-1 mt-4 text-sm font-bold" style="color: #2CA58D">
               Nueva propiedad
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2.5" class="group-hover:translate-x-1 transition-transform">
+                <path d="m9 18 6-6-6-6"/>
+              </svg>
+            </div>
+          </button>
+
+          <!-- Paquetes de alquiler -->
+          <button (click)="goToRentalPackages()"
+            class="group bg-white rounded-2xl shadow-md p-7 text-left hover:shadow-xl transition-all hover:-translate-y-1 border-2 border-transparent hover:border-[#AA4465]/20">
+            <div class="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform"
+                 style="background: linear-gradient(135deg, rgba(170,68,101,0.12), rgba(51,55,69,0.05))">
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="1.5" style="color: #AA4465">
+                <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+                <line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/>
+                <line x1="3" x2="21" y1="10" y2="10"/>
+              </svg>
+            </div>
+            <h3 class="text-lg font-black mb-1" style="color: var(--rhouses-secondary-dark)">Paquetes de alquiler</h3>
+            <p class="text-sm text-gray-500 leading-relaxed">Gestiona fechas, precios y disponibilidad de tus paquetes.</p>
+            <div class="flex items-center gap-1 mt-4 text-sm font-bold" style="color: #AA4465">
+              Ver paquetes
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
                    stroke="currentColor" stroke-width="2.5" class="group-hover:translate-x-1 transition-transform">
                 <path d="m9 18 6-6-6-6"/>

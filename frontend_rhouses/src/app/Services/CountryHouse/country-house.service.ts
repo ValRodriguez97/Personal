@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import {HttpClient, HttpHeaders, HttpParams} from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 export interface CountryHouseResponse {
@@ -137,10 +137,15 @@ export class CountryHouseService {
     );
   }
 
-  /** GET /api/houses/{houseId}/packages — Paquetes de alquiler de una casa */
+  /**
+   * GET /api/houses/{houseId}/packages
+   * FIX: se añaden headers de autenticación — sin ellos el backend devuelve 401
+   * y el componente muestra lista vacía sin error visible.
+   */
   getPackagesByHouse(houseId: string): Observable<ApiResponse<RentalPackageResponse[]>> {
     return this.http.get<ApiResponse<RentalPackageResponse[]>>(
-      `${this.apiUrl}/${houseId}/packages`
+      `${this.apiUrl}/${houseId}/packages`,
+      { headers: this.getAuthHeaders() }
     );
   }
 

@@ -4,24 +4,24 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ToastrService } from 'ngx-toastr';
 import { AuthService } from '../../Services/Auth/Auth.service';
-import { CountryHouseService, RentalPackageResponse } from '../../Services/CountryHouse/country-house.service';
+import { CountryHouseService, CountryHouseResponse, RentalPackageResponse } from '../../Services/CountryHouse/country-house.service';
 import { NavbarComponent } from '../homepage/components/navbar/navbar.component';
+import { AvailabilityCalendarComponent } from './Components/availability-calendar.component';
 
 interface PackageForm {
   startingDate: string;
-  endingDate: string;
-  priceNight: number | null;
-  typeRental: 'ENTIRE_HOUSE' | 'ROOMS' | 'BOTH';
+  endingDate:   string;
+  priceNight:   number | null;
+  typeRental:   'ENTIRE_HOUSE' | 'ROOMS' | 'BOTH';
 }
 
 @Component({
   selector: 'app-rental-package',
   standalone: true,
-  imports: [CommonModule, FormsModule, NavbarComponent],
-  templateUrl: './rental-package.component.html' // 👈 IMPORTANTE
+  imports: [CommonModule, FormsModule, NavbarComponent, AvailabilityCalendarComponent],
+  templateUrl: './rental-package.component.html',
 })
 export class RentalPackageComponent implements OnInit {
-
   private route       = inject(ActivatedRoute);
   private router      = inject(Router);
   private authService = inject(AuthService);
@@ -29,51 +29,81 @@ export class RentalPackageComponent implements OnInit {
   private toastr      = inject(ToastrService);
 
   ownerId: string | null = null;
-  houseId: string | null = null;
 
-  packages: RentalPackageResponse[] = [];
-  isLoading  = true;
-  isSaving   = false;
-  showForm   = false;
+  houses:          CountryHouseResponse[] = [];
+  isLoadingHouses  = true;
+
+  selectedHouseId: string = '';
+  selectedHouse:   CountryHouseResponse | null = null;
+
+  packages:     RentalPackageResponse[] = [];
+  isLoadingPkgs = false;
+
+  showForm  = false;
   editingId: string | null = null;
+  isSaving  = false;
 
   today = new Date().toISOString().split('T')[0];
 
   form: PackageForm = {
     startingDate: '',
-    endingDate: '',
-    priceNight: null,
-    typeRental: 'ENTIRE_HOUSE'
+    endingDate:   '',
+    priceNight:   null,
+    typeRental:   'ENTIRE_HOUSE'
   };
 
   rentalTypeOptions = [
-    { value: 'ENTIRE_HOUSE', label: 'Casa completa', desc: 'Se alquila todo' },
-    { value: 'ROOMS',        label: 'Por habitaciones', desc: 'Solo cuartos' },
-    { value: 'BOTH',         label: 'Ambas',            desc: 'Ambas opciones' }
+    { value: 'ENTIRE_HOUSE', label: 'Casa completa',    desc: 'Se alquila todo' },
+    { value: 'ROOMS',        label: 'Por habitaciones', desc: 'Solo cuartos'    },
+    { value: 'BOTH',         label: 'Ambas',            desc: 'Ambas opciones'  }
   ];
 
   ngOnInit(): void {
     this.ownerId = this.route.snapshot.paramMap.get('ownerid');
-    this.houseId = this.route.snapshot.paramMap.get('houseid');
-
-    if (!this.authService.isOwner() || !this.ownerId || !this.houseId) {
+    if (!this.authService.isOwner() || !this.ownerId) {
       this.toastr.warning('Acceso no autorizado', 'Error');
       this.router.navigate(['/']);
       return;
     }
-    this.loadPackages();
+    this.loadHouses();
+  }
+
+  loadHouses(): void {
+    this.isLoadingHouses = true;
+    this.houseSvc.findByOwner(this.ownerId!).subscribe({
+      next: (res) => {
+        this.houses = (res?.data ?? []).filter(h => h.stateCountryHouse === 'ACTIVE');
+        this.isLoadingHouses = false;
+        if (this.houses.length === 1) {
+          this.onHouseChange(this.houses[0].id);
+        }
+      },
+      error: () => {
+        this.toastr.error('No se pudieron cargar tus casas', 'Error');
+        this.isLoadingHouses = false;
+      }
+    });
+  }
+
+  onHouseChange(houseId: string): void {
+    this.selectedHouseId = houseId;
+    this.selectedHouse   = this.houses.find(h => h.id === houseId) ?? null;
+    this.packages        = [];
+    this.showForm        = false;
+    this.editingId       = null;
+    if (houseId) this.loadPackages();
   }
 
   loadPackages(): void {
-    this.isLoading = true;
-    this.houseSvc.getPackagesByHouse(this.houseId!).subscribe({
+    this.isLoadingPkgs = true;
+    this.houseSvc.getPackagesByHouse(this.selectedHouseId).subscribe({
       next: (res) => {
-        this.packages  = res?.data ?? [];
-        this.isLoading = false;
+        this.packages      = res?.data ?? [];
+        this.isLoadingPkgs = false;
       },
-      error: () => {
-        this.toastr.error('No se pudieron cargar los paquetes', 'Error');
-        this.isLoading = false;
+      error: (err) => {
+        this.toastr.error(err?.error?.message ?? 'No se pudieron cargar los paquetes', 'Error');
+        this.isLoadingPkgs = false;
       }
     });
   }
@@ -88,12 +118,13 @@ export class RentalPackageComponent implements OnInit {
   editPackage(pkg: RentalPackageResponse): void {
     this.editingId = pkg.id;
     this.form = {
-      startingDate: pkg.startingDate,
-      endingDate:   pkg.endingDate,
+      startingDate: (pkg.startingDate ?? '').split('T')[0],
+      endingDate:   (pkg.endingDate   ?? '').split('T')[0],
       priceNight:   pkg.priceNight,
       typeRental:   pkg.typeRental as any
     };
     this.showForm = true;
+    setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
   }
 
   cancelForm(): void {
@@ -102,18 +133,20 @@ export class RentalPackageComponent implements OnInit {
   }
 
   savePackage(): void {
-    if (!this.form.startingDate || !this.form.endingDate || !this.form.priceNight) {
-      this.toastr.warning('Completa todos los campos obligatorios', 'Campos requeridos');
+    if (!this.selectedHouseId) {
+      this.toastr.warning('Selecciona una casa primero', 'Sin casa seleccionada');
       return;
     }
-
+    if (!this.form.startingDate || !this.form.endingDate || this.form.priceNight === null || this.form.priceNight <= 0) {
+      this.toastr.warning('Completa todos los campos (precio mayor a 0)', 'Campos requeridos');
+      return;
+    }
     if (new Date(this.form.startingDate) >= new Date(this.form.endingDate)) {
       this.toastr.warning('La fecha de inicio debe ser anterior a la fecha de fin', 'Fechas inválidas');
       return;
     }
 
     this.isSaving = true;
-
     const payload = {
       startingDate: this.form.startingDate,
       endingDate:   this.form.endingDate,
@@ -126,7 +159,7 @@ export class RentalPackageComponent implements OnInit {
         next: (res) => {
           const idx = this.packages.findIndex(p => p.id === this.editingId);
           if (idx !== -1 && res?.data) this.packages[idx] = res.data;
-          this.toastr.success('Paquete actualizado correctamente', '¡Éxito!');
+          this.toastr.success('Paquete actualizado', '¡Éxito!');
           this.isSaving = false;
           this.cancelForm();
         },
@@ -136,10 +169,10 @@ export class RentalPackageComponent implements OnInit {
         }
       });
     } else {
-      this.houseSvc.addRentalPackage(this.ownerId!, this.houseId!, payload).subscribe({
+      this.houseSvc.addRentalPackage(this.ownerId!, this.selectedHouseId, payload).subscribe({
         next: (res) => {
           if (res?.data) this.packages = [res.data, ...this.packages];
-          this.toastr.success('Paquete creado correctamente', '¡Éxito!');
+          this.toastr.success('Paquete creado', '¡Éxito!');
           this.isSaving = false;
           this.cancelForm();
         },
@@ -153,11 +186,10 @@ export class RentalPackageComponent implements OnInit {
 
   deletePackage(id: string): void {
     if (!confirm('¿Eliminar este paquete de alquiler?')) return;
-
     this.houseSvc.deleteRentalPackage(this.ownerId!, id).subscribe({
       next: () => {
         this.packages = this.packages.filter(p => p.id !== id);
-        this.toastr.success('Paquete eliminado', '¡Eliminado!');
+        this.toastr.success('Paquete eliminado', '¡Listo!');
       },
       error: (err) => {
         this.toastr.error(err?.error?.message ?? 'Error al eliminar', 'Error');
@@ -165,29 +197,30 @@ export class RentalPackageComponent implements OnInit {
     });
   }
 
-  goBack(): void {
-    this.router.navigate(['/my-houses']);
-  }
+  goBack(): void { this.router.navigate(['/']); }
 
   formatDate(date: string): string {
     if (!date) return '';
-    return new Date(date + 'T00:00:00').toLocaleDateString('es-CO', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric'
-    });
+    try {
+      return new Date(date.split('T')[0] + 'T00:00:00').toLocaleDateString('es-CO', {
+        day: '2-digit', month: 'long', year: 'numeric'
+      });
+    } catch { return date; }
   }
 
   getDurationDays(start: string, end: string): number {
-    const diff = new Date(end).getTime() - new Date(start).getTime();
-    return Math.max(0, Math.round(diff / (1000 * 60 * 60 * 24)));
+    try {
+      const s = new Date(start.split('T')[0] + 'T00:00:00').getTime();
+      const e = new Date(end.split('T')[0]   + 'T00:00:00').getTime();
+      return Math.max(0, Math.round((e - s) / (1000 * 60 * 60 * 24)));
+    } catch { return 0; }
   }
 
   getRentalTypeLabel(type: string): string {
     const map: Record<string, string> = {
       ENTIRE_HOUSE: '🏠 Casa completa',
-      ROOMS: '🛏️ Por habitaciones',
-      BOTH: '✨ Ambas opciones'
+      ROOMS:        '🛏️ Por habitaciones',
+      BOTH:         '✨ Ambas opciones'
     };
     return map[type] ?? type;
   }
@@ -195,9 +228,15 @@ export class RentalPackageComponent implements OnInit {
   getRentalTypeClass(type: string): string {
     const map: Record<string, string> = {
       ENTIRE_HOUSE: 'bg-blue-50 text-blue-700',
-      ROOMS: 'bg-purple-50 text-purple-700',
-      BOTH: 'bg-green-50 text-green-700'
+      ROOMS:        'bg-purple-50 text-purple-700',
+      BOTH:         'bg-green-50 text-green-700'
     };
     return map[type] ?? 'bg-gray-100 text-gray-600';
+  }
+
+  getFirstPhoto(house: CountryHouseResponse): string {
+    return house.photo?.[0]?.url?.trim()
+      ? house.photo[0].url
+      : 'https://images.unsplash.com/photo-1572345901383-be2fcd1625f3?w=800&q=80';
   }
 }
