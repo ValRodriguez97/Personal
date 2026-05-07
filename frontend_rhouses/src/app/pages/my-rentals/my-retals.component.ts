@@ -172,24 +172,29 @@ export class MyRentalsComponent implements OnInit {
     if (!this.payTarget) return;
     this.isPaying    = true;
     this.paymentStep = 'processing';
+    const current = this.payTarget;
+    this.rentalSvc.payDeposit(current.id, this.depositAmount, current.ownerId).subscribe({
+      next: (res) => {
+        const updated = res?.data
+          ? this.mapRentalToVM(res.data)
+          : this.mapRentalToVM({ ...current, state: 'CONFIRMED' });
 
-    // Simulamos 1.5s de procesamiento (cuando el backend tenga el endpoint
-    // específico del cliente, reemplazar este setTimeout por la llamada HTTP).
-    // Por ahora mostramos el estado "success" informativo (el pago se hace
-    // por transferencia externa; el propietario lo confirma).
-    setTimeout(() => {
-      this.paymentStep = 'success';
-      this.isPaying    = false;
+        const idx = this.rentals.findIndex((r) => r.id === updated.id);
+        if (idx !== -1) {
+          this.rentals[idx] = updated;
+          this.updateCounters();
+        }
+        if (this.searchResult?.id === updated.id) this.searchResult = updated;
 
-      // Actualizamos localmente para que el botón desaparezca y el mensaje
-      // sea coherente — el estado real sigue siendo PENDING hasta que el
-      // propietario lo confirme.
-      const idx = this.rentals.findIndex(r => r.id === this.payTarget!.id);
-      if (idx !== -1) {
-        // Marcamos uiCanPay = false para que no aparezca de nuevo el botón
-        this.rentals[idx] = { ...this.rentals[idx], uiCanPay: false };
+        this.paymentStep = 'success';
+        this.isPaying = false;
+      },
+      error: (err) => {
+        this.toastr.error(err?.error?.message ?? 'No se pudo registrar el anticipo', 'Error');
+        this.paymentStep = 'confirm';
+        this.isPaying = false;
       }
-    }, 1500);
+    });
   }
 
   // ── Mapeo a ViewModel ───────────────────────────────────────────────────

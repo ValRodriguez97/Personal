@@ -15,6 +15,14 @@ export class NavbarComponent {
 
   dropdownOpen = false;
 
+  get displayName(): string {
+    return this.authService.user()?.fullName?.trim() || this.authService.user()?.userName || '';
+  }
+
+  get avatarUrl(): string {
+    return this.authService.user()?.avatarUrl ?? '';
+  }
+
   toggleDropdown(): void {
     this.dropdownOpen = !this.dropdownOpen;
   }
@@ -44,5 +52,10 @@ export class NavbarComponent {
   goToMyRentals(): void {
     this.dropdownOpen = false;
     this.router.navigate(['/my-rentals']);
+  }
+
+  goToOwnerReservations(): void {
+    this.dropdownOpen = false;
+    this.router.navigate(['/owner-reservations']);
   }
 }

@@ -253,7 +253,10 @@
               🗓️ Disponibilidad de paquetes
             </h2>
             <p class="text-xs text-gray-400 mb-4">Visualiza los paquetes activos en el calendario antes de elegir fechas.</p>
-            <app-availability-calendar [packages]="packages"></app-availability-calendar>
+            <app-availability-calendar
+              [packages]="packages"
+              [reservations]="reservationOverlays">
+            </app-availability-calendar>
           </div>
         </div>
 

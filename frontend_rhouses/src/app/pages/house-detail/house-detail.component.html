@@ -231,12 +231,15 @@
         <div class="bg-white rounded-2xl shadow-md p-6">
           <p class="text-sm text-gray-500 mb-1">¿Te interesa esta casa?</p>
           <h3 class="text-lg font-black mb-4" style="color: var(--rhouses-secondary-dark)">Consulta disponibilidad</h3>
-          <button *ngIf="!authService.isOwner()"
+          <button *ngIf="authService.isLoggedIn() && !authService.isOwner()"
             (click)="goToMakeRental()"
             class="w-full py-3 rounded-xl text-white font-bold hover:opacity-90 transition-all shadow-md"
             style="background-color: var(--rhouses-accent)">
             Reservar esta casa
           </button>
+          <p *ngIf="!authService.isLoggedIn()" class="text-xs text-gray-500 leading-relaxed">
+            Inicia sesión como cliente para realizar reservas. Desde esta vista puedes consultar la disponibilidad y paquetes.
+          </p>
         </div>
 
       </div>
@@ -341,7 +344,10 @@
 
         <!-- Calendario -->
         <div class="mb-6">
-          <app-availability-calendar [packages]="packages"></app-availability-calendar>
+          <app-availability-calendar
+            [packages]="packages"
+            [reservations]="reservations">
+          </app-availability-calendar>
         </div>
 
         <!-- Empty state paquetes -->

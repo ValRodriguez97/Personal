@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -8,6 +8,8 @@ import { NavbarComponent } from '../homepage/components/navbar/navbar.component'
 import { CountryHouseService, CountryHouseResponse, RentalPackageResponse } from '../../Services/CountryHouse/country-house.service';
 import { RentalService, RentalResponse } from '../../Services/Rental/rental.service';
 import { AvailabilityCalendarComponent } from '../rental-package/Components/availability-calendar.component';
+import { ReservationOverlay } from '../rental-package/Components/availability-calendar.component';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 export interface ConfirmedRentalVM extends RentalResponse {
   uiCheckIn?: string;
@@ -31,6 +33,7 @@ export class MakeRentalComponent implements OnInit {
   private toastr      = inject(ToastrService);
   private houseSvc    = inject(CountryHouseService);
   private rentalSvc   = inject(RentalService);
+  private destroyRef  = inject(DestroyRef);
   authService         = inject(AuthService);
 
   house: CountryHouseResponse | null = null;
@@ -39,6 +42,7 @@ export class MakeRentalComponent implements OnInit {
   isSubmitting = false;
 
   confirmedRental: ConfirmedRentalVM | null = null;
+  reservationOverlays: ReservationOverlay[] = [];
 
   // ── PASO ACTUAL (mejora 2) ──────────────────────────────
   currentStep = 1;
@@ -97,6 +101,12 @@ export class MakeRentalComponent implements OnInit {
           : 'https://images.unsplash.com/photo-1572345901383-be2fcd1625f3?w=800&q=80';
 
         this.loadPackages();
+        this.loadReservationOverlays();
+        this.rentalSvc.observeActiveRentalsByHouse(this.house.code)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe((rentals) => {
+            this.reservationOverlays = rentals.map((r) => this.toOverlay(r));
+          });
       },
       error: () => {
         this.toastr.error('No se pudo cargar la casa', 'Error');
@@ -112,6 +122,16 @@ export class MakeRentalComponent implements OnInit {
         this.isLoading = false;
       },
       error: () => { this.isLoading = false; }
+    });
+  }
+
+  private loadReservationOverlays(): void {
+    const user = this.authService.user();
+    if (!user?.id) return;
+
+    this.rentalSvc.findByCustomer(user.id).subscribe({
+      next: () => {},
+      error: () => {}
     });
   }
 
@@ -449,4 +469,14 @@ export class MakeRentalComponent implements OnInit {
   goBack():      void { this.router.navigate(['/houses', this.houseId]); }
   goMyRentals(): void { this.router.navigate(['/my-rentals']); }
   goHome():      void { this.router.navigate(['/']); }
+
+  private toOverlay(rental: RentalResponse): ReservationOverlay {
+    return {
+      id: rental.id,
+      rentalCode: rental.rentalCode,
+      checkInDate: rental.checkInDate,
+      checkOutDate: rental.checkOutDate,
+      state: rental.state
+    };
+  }
 }

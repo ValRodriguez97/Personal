@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -8,6 +8,9 @@ import { ToastrService } from 'ngx-toastr';
 import { HouseDetailService, HouseDetailResponse } from '../../Services/HouseDetails/house-detail.service';
 import { CountryHouseService, RentalPackageResponse } from '../../Services/CountryHouse/country-house.service';
 import { AvailabilityCalendarComponent } from '../rental-package/Components/availability-calendar.component';
+import { ReservationOverlay } from '../rental-package/Components/availability-calendar.component';
+import { RentalService, RentalResponse } from '../../Services/Rental/rental.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 interface PackageForm {
   startingDate: string;
@@ -28,8 +31,10 @@ export class HouseDetailComponent implements OnInit {
   private router     = inject(Router);
   private houseSvc   = inject(HouseDetailService);
   private countrySvc = inject(CountryHouseService);
+  private rentalSvc  = inject(RentalService);
   authService        = inject(AuthService);
   private toastr     = inject(ToastrService);
+  private destroyRef = inject(DestroyRef);
 
   house: HouseDetailResponse | null = null;
   isLoading     = true;
@@ -42,6 +47,7 @@ export class HouseDetailComponent implements OnInit {
 
   // ── Paquetes ────────────────────────────────────────────────
   packages:     RentalPackageResponse[] = [];
+  reservations: ReservationOverlay[] = [];
   isLoadingPkgs = false;
 
   showPackageForm = false;
@@ -73,6 +79,7 @@ export class HouseDetailComponent implements OnInit {
         this.house    = res?.data ?? null;
         this.isLoading = false;
         this.loadPackages();
+        this.loadReservations();
       },
       error: () => {
         this.toastr.error('No se pudo cargar la casa rural', 'Error');
@@ -93,6 +100,28 @@ export class HouseDetailComponent implements OnInit {
         this.isLoadingPkgs = false;
       }
     });
+  }
+
+  loadReservations(): void {
+    if (!this.house?.code) {
+      this.reservations = [];
+      return;
+    }
+
+    this.rentalSvc.observeActiveRentalsByHouse(this.house.code)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((rentals) => {
+        this.reservations = rentals.map((r) => this.toOverlay(r));
+      });
+
+    const user = this.authService.user();
+    if (!user) return;
+
+    const hydrate$ = this.authService.isOwner()
+      ? this.rentalSvc.findByOwner(user.id)
+      : this.rentalSvc.findByCustomer(user.id);
+
+    hydrate$.subscribe({ next: () => {}, error: () => {} });
   }
 
   // ── Formulario paquetes ──────────────────────────────────────
@@ -275,4 +304,14 @@ export class HouseDetailComponent implements OnInit {
   goToMakeRental(): void {
   this.router.navigate(['/make-rental', this.houseId]);
 }
+
+  private toOverlay(rental: RentalResponse): ReservationOverlay {
+    return {
+      id: rental.id,
+      rentalCode: rental.rentalCode,
+      checkInDate: rental.checkInDate,
+      checkOutDate: rental.checkOutDate,
+      state: rental.state
+    };
+  }
 }

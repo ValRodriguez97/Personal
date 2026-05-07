@@ -10,18 +10,21 @@ import { EditHouseComponent }      from './pages/edit-house/edit-house.component
 import { RentalPackageComponent }  from './pages/rental-package/rental-package.component';
 import { MakeRentalComponent } from './pages/make-rental/make-rental.component';
 import { MyRentalsComponent } from './pages/my-rentals/my-retals.component';
+import { authGuard, customerGuard, ownerGuard } from './guards/auth.guards';
+import { OwnerReservationsComponent } from './pages/owner-reservations/owner-reservations.component';
 
 export const routes: Routes = [
   { path: '',                                              component: HomepageComponent      },
   { path: 'login',                                         component: LoginComponent         },
   { path: 'register',                                      component: RegisterComponent      },
-  { path: 'settings',                                      component: SettingsComponent      },
-  { path: 'register-house',                                component: RegisterHouseComponent },
+  { path: 'settings',                                      component: SettingsComponent, canActivate: [authGuard]      },
+  { path: 'register-house',                                component: RegisterHouseComponent, canActivate: [ownerGuard] },
   { path: 'houses/:id',                                    component: HouseDetailComponent   },
-  { path: 'my-houses',                                     component: MyHousesComponent      },
-  { path: 'edit-house/:id',                                component: EditHouseComponent     },
-  { path: 'rental-packages/:ownerid',             component: RentalPackageComponent },
-  { path: 'make-rental/:id', component: MakeRentalComponent },
-  { path: 'my-rentals',      component: MyRentalsComponent  },
+  { path: 'my-houses',                                     component: MyHousesComponent, canActivate: [ownerGuard]      },
+  { path: 'edit-house/:id',                                component: EditHouseComponent, canActivate: [ownerGuard]     },
+  { path: 'rental-packages/:ownerid',             component: RentalPackageComponent, canActivate: [ownerGuard] },
+  { path: 'owner-reservations', component: OwnerReservationsComponent, canActivate: [ownerGuard] },
+  { path: 'make-rental/:id', component: MakeRentalComponent, canActivate: [customerGuard] },
+  { path: 'my-rentals',      component: MyRentalsComponent, canActivate: [customerGuard]  },
   { path: '**',                                            redirectTo: '', pathMatch: 'full'  }
 ];

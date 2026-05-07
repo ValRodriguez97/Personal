@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ToastrService } from 'ngx-toastr';
@@ -7,6 +7,10 @@ import { AuthService } from '../../Services/Auth/Auth.service';
 import { CountryHouseService, CountryHouseResponse, RentalPackageResponse } from '../../Services/CountryHouse/country-house.service';
 import { NavbarComponent } from '../homepage/components/navbar/navbar.component';
 import { AvailabilityCalendarComponent } from './Components/availability-calendar.component';
+import { ReservationOverlay } from './Components/availability-calendar.component';
+import { RentalService, RentalResponse } from '../../Services/Rental/rental.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subscription } from 'rxjs';
 
 interface PackageForm {
   startingDate: string;
@@ -26,7 +30,9 @@ export class RentalPackageComponent implements OnInit {
   private router      = inject(Router);
   private authService = inject(AuthService);
   private houseSvc    = inject(CountryHouseService);
+  private rentalSvc   = inject(RentalService);
   private toastr      = inject(ToastrService);
+  private destroyRef  = inject(DestroyRef);
 
   ownerId: string | null = null;
 
@@ -37,7 +43,9 @@ export class RentalPackageComponent implements OnInit {
   selectedHouse:   CountryHouseResponse | null = null;
 
   packages:     RentalPackageResponse[] = [];
+  reservations: ReservationOverlay[] = [];
   isLoadingPkgs = false;
+  private houseReservationsSub?: Subscription;
 
   showForm  = false;
   editingId: string | null = null;
@@ -89,9 +97,11 @@ export class RentalPackageComponent implements OnInit {
     this.selectedHouseId = houseId;
     this.selectedHouse   = this.houses.find(h => h.id === houseId) ?? null;
     this.packages        = [];
+    this.reservations    = [];
     this.showForm        = false;
     this.editingId       = null;
     if (houseId) this.loadPackages();
+    if (this.selectedHouse?.code) this.loadOwnerReservations(this.selectedHouse.code);
   }
 
   loadPackages(): void {
@@ -105,6 +115,20 @@ export class RentalPackageComponent implements OnInit {
         this.toastr.error(err?.error?.message ?? 'No se pudieron cargar los paquetes', 'Error');
         this.isLoadingPkgs = false;
       }
+    });
+  }
+
+  private loadOwnerReservations(houseCode: string): void {
+    this.houseReservationsSub?.unsubscribe();
+    this.houseReservationsSub = this.rentalSvc.observeActiveRentalsByHouse(houseCode)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((rentals) => {
+        this.reservations = rentals.map((r) => this.toOverlay(r));
+      });
+
+    this.rentalSvc.findByOwner(this.ownerId!).subscribe({
+      next: () => {},
+      error: () => {}
     });
   }
 
@@ -238,5 +262,15 @@ export class RentalPackageComponent implements OnInit {
     return house.photo?.[0]?.url?.trim()
       ? house.photo[0].url
       : 'https://images.unsplash.com/photo-1572345901383-be2fcd1625f3?w=800&q=80';
+  }
+
+  private toOverlay(rental: RentalResponse): ReservationOverlay {
+    return {
+      id: rental.id,
+      rentalCode: rental.rentalCode,
+      checkInDate: rental.checkInDate,
+      checkOutDate: rental.checkOutDate,
+      state: rental.state
+    };
   }
 }

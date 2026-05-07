@@ -112,4 +112,5 @@ export class HomepageComponent implements OnInit {
   goToRegisterHouse() { this.router.navigate(['/register-house']); }
   goToSettings()      { this.router.navigate(['/settings']); }
   goToRentalPackages() { const ownerId = this.authService.user()?.id; this.router.navigate(['/rental-packages', ownerId]);}
+  goToOwnerReservations() { this.router.navigate(['/owner-reservations']); }
 }

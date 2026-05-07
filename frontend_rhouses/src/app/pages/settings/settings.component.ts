@@ -1,11 +1,13 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
 import { NavbarComponent } from '../homepage/components/navbar/navbar.component';
 import { ToastrService } from 'ngx-toastr';
 import { AuthService } from '../../Services/Auth/Auth.service';
 import { BankAccountService, BankAccountPayload } from '../../Services/BankAccount/BankAccount.service';
+import { UserProfileService } from '../../Services/Profile/user-profile.service';
 
 interface BankAccount {
   id: string;
@@ -33,7 +35,7 @@ interface BankFormErrors {
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, NavbarComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterModule, NavbarComponent],
   templateUrl: './settings.component.html',
   styleUrls: ['./settings.component.css']
 })
@@ -42,13 +44,26 @@ export class SettingsComponent implements OnInit {
   private toastr    = inject(ToastrService);
   private router    = inject(Router);
   private bankSvc   = inject(BankAccountService);
+  private profileSvc = inject(UserProfileService);
+  private fb = inject(FormBuilder);
 
   activeTab: 'profile' | 'bank' = 'bank';
 
   showAddModal      = false;
   isLoading         = false;
   isLoadingAccounts = false;
+  isLoadingProfile  = false;
+  isSavingProfile   = false;
   editingAccountId: string | null = null;
+
+  profileForm = this.fb.group({
+    fullName: ['', [Validators.required, Validators.minLength(3)]],
+    email: ['', [Validators.required, Validators.email]],
+    phone: ['', [Validators.required, Validators.pattern(/^\+?[0-9]{7,15}$/)]],
+    avatarUrl: [''],
+    password: ['', [Validators.minLength(8)]],
+    confirmPassword: ['']
+  }, { validators: [this.passwordsMatchValidator] });
 
   formData: BankForm = { accountNumber: '', bankName: '', accountType: 'ahorros', balance: '' };
   errors: BankFormErrors = {};
@@ -69,6 +84,19 @@ export class SettingsComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadAccounts();
+    this.loadProfile();
+  }
+
+  get displayName(): string {
+    return this.authService.user()?.fullName?.trim() || this.authService.user()?.userName || '';
+  }
+
+  get profileAvatar(): string {
+    return this.authService.user()?.avatarUrl ?? '';
+  }
+
+  get profileCtrl() {
+    return this.profileForm.controls;
   }
 
   loadAccounts(): void {
@@ -96,6 +124,78 @@ export class SettingsComponent implements OnInit {
       error: () => {
         this.toastr.error('No se pudieron cargar las cuentas bancarias', 'Error');
         this.isLoadingAccounts = false;
+      }
+    });
+  }
+
+  loadProfile(): void {
+    const user = this.authService.user();
+    if (!user) return;
+
+    this.isLoadingProfile = true;
+    this.profileSvc.getProfile(user).subscribe({
+      next: (profile) => {
+        this.profileForm.patchValue({
+          fullName: profile.fullName,
+          email: profile.email,
+          phone: profile.phone,
+          avatarUrl: profile.avatarUrl ?? '',
+          password: '',
+          confirmPassword: ''
+        });
+        this.authService.updateUserProfile({
+          fullName: profile.fullName,
+          email: profile.email,
+          phone: profile.phone,
+          avatarUrl: profile.avatarUrl
+        });
+        this.isLoadingProfile = false;
+      },
+      error: () => {
+        this.profileForm.patchValue({
+          fullName: user.fullName ?? user.userName,
+          email: user.email ?? '',
+          phone: user.phone ?? '',
+          avatarUrl: user.avatarUrl ?? ''
+        });
+        this.isLoadingProfile = false;
+      }
+    });
+  }
+
+  saveProfile(): void {
+    if (this.profileForm.invalid) {
+      this.profileForm.markAllAsTouched();
+      return;
+    }
+
+    const user = this.authService.user();
+    if (!user) return;
+
+    this.isSavingProfile = true;
+    const values = this.profileForm.getRawValue();
+
+    this.profileSvc.updateProfile(user, {
+      fullName: values.fullName ?? '',
+      email: values.email ?? '',
+      phone: values.phone ?? '',
+      avatarUrl: values.avatarUrl ?? '',
+      password: values.password || undefined
+    }).subscribe({
+      next: (profile) => {
+        this.authService.updateUserProfile({
+          fullName: profile.fullName,
+          email: profile.email,
+          phone: profile.phone,
+          avatarUrl: profile.avatarUrl
+        });
+        this.profileForm.patchValue({ password: '', confirmPassword: '' });
+        this.toastr.success('Perfil actualizado correctamente', '¡Éxito!');
+        this.isSavingProfile = false;
+      },
+      error: (err) => {
+        this.toastr.error(err?.error?.message ?? 'No se pudo actualizar el perfil', 'Error');
+        this.isSavingProfile = false;
       }
     });
   }
@@ -259,5 +359,12 @@ export class SettingsComponent implements OnInit {
 
   goHome(): void {
     this.router.navigate(['/']);
+  }
+
+  private passwordsMatchValidator(group: any) {
+    const password = group.get('password')?.value;
+    const confirm = group.get('confirmPassword')?.value;
+    if (!password && !confirm) return null;
+    return password === confirm ? null : { passwordsMismatch: true };
   }
 }

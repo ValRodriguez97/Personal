@@ -1,8 +1,11 @@
-import { Component, Input, OnChanges, SimpleChanges, inject } from '@angular/core';
+import { Component, DestroyRef, Input, OnChanges, OnInit, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { CountryHouseResponse, CountryHouseService, AvailabilityResponse } from '../../../../Services/CountryHouse/country-house.service';
 import { SearchParams } from '../hero-section/hero-section.component';
+import { RentalService } from '../../../../Services/Rental/rental.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { AuthService } from '../../../../Services/Auth/Auth.service';
 
 export interface RentalPackageInfo {
   id: string;
@@ -16,6 +19,7 @@ interface HouseWithAvailability extends CountryHouseResponse {
   availabilityLoaded: boolean;
   entireHouseAvailable: boolean | null;
   checkingAvailability: boolean;
+  hasReservationOverlap: boolean;
   packages: RentalPackageInfo[] | undefined;
   loadingPackages: boolean;
 }
@@ -26,7 +30,7 @@ interface HouseWithAvailability extends CountryHouseResponse {
   imports: [CommonModule],
   templateUrl: './house-grid.component.html'
 })
-export class HouseGridComponent implements OnChanges {
+export class HouseGridComponent implements OnChanges, OnInit {
   @Input() houses: CountryHouseResponse[] = [];
   @Input() loading = false;
   @Input() searchParams: SearchParams = { poblacion: '', fecha: '', noches: 2, tipoAlquiler: 'ambas' };
@@ -35,6 +39,17 @@ export class HouseGridComponent implements OnChanges {
 
   private router               = inject(Router);
   private countryHouseService  = inject(CountryHouseService);
+  private rentalService        = inject(RentalService);
+  private destroyRef           = inject(DestroyRef);
+  private authService          = inject(AuthService);
+
+  ngOnInit(): void {
+    this.hydrateRentalsForSession();
+
+    this.rentalService.observeRentals()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.refreshReservationOverlaps());
+  }
 
   get empty(): boolean {
     return !this.loading && this.enrichedHouses.length === 0;
@@ -47,6 +62,7 @@ export class HouseGridComponent implements OnChanges {
         availabilityLoaded: false,
         entireHouseAvailable: null,
         checkingAvailability: false,
+        hasReservationOverlap: false,
         packages: undefined,
         loadingPackages: true
       }));
@@ -58,6 +74,12 @@ export class HouseGridComponent implements OnChanges {
           this.loadAvailability(h);
         }
       });
+
+      this.refreshReservationOverlaps();
+    }
+
+    if (changes['searchParams'] && !changes['houses']) {
+      this.refreshReservationOverlaps();
     }
   }
 
@@ -92,12 +114,41 @@ export class HouseGridComponent implements OnChanges {
           const days = Object.values(avail.dailyAvailability);
           house.entireHouseAvailable = days.every(d => d.entireHouseStatus === 'FREE');
         }
+        house.hasReservationOverlap = this.computeReservationOverlap(house);
       },
       error: () => {
         house.checkingAvailability = false;
         house.availabilityLoaded   = true;
+        house.hasReservationOverlap = this.computeReservationOverlap(house);
       }
     });
+  }
+
+  private refreshReservationOverlaps(): void {
+    this.enrichedHouses = this.enrichedHouses.map((house) => ({
+      ...house,
+      hasReservationOverlap: this.computeReservationOverlap(house)
+    }));
+  }
+
+  private computeReservationOverlap(house: HouseWithAvailability): boolean {
+    if (!this.searchParams.fecha || this.searchParams.noches <= 0) return false;
+    return this.rentalService.hasActiveOverlap(
+      house.code,
+      this.searchParams.fecha,
+      this.searchParams.noches
+    );
+  }
+
+  private hydrateRentalsForSession(): void {
+    const user = this.authService.user();
+    if (!user) return;
+
+    const hydrate$ = this.authService.isOwner()
+      ? this.rentalService.findByOwner(user.id)
+      : this.rentalService.findByCustomer(user.id);
+
+    hydrate$.subscribe({ next: () => {}, error: () => {} });
   }
 
   navigateToDetail(houseId: string): void {

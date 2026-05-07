@@ -16,15 +16,18 @@
 
     <!-- ── Header de perfil ── -->
     <div class="bg-white rounded-2xl shadow-md p-6 mb-8 flex flex-col sm:flex-row items-center gap-5">
-      <div
-        class="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-4xl font-black shadow-lg"
-        [ngClass]="authService.isOwner() ? 'bg-[#AA4465]' : 'bg-[var(--rhouses-accent)]'"
-      >
+      <img *ngIf="profileAvatar"
+           [src]="profileAvatar"
+           alt="Avatar"
+           class="w-20 h-20 rounded-2xl object-cover shadow-lg border-2 border-white" />
+      <div *ngIf="!profileAvatar"
+           class="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-4xl font-black shadow-lg"
+           [ngClass]="authService.isOwner() ? 'bg-[#AA4465]' : 'bg-[var(--rhouses-accent)]'">
         {{ authService.userInitial() }}
       </div>
       <div class="text-center sm:text-left">
         <h1 class="text-2xl font-black" style="color: var(--rhouses-secondary-dark)">
-          {{ authService.user()?.userName }}
+          {{ displayName }}
         </h1>
         <span
           class="inline-flex items-center gap-1.5 mt-1 px-3 py-1 rounded-full text-sm font-bold"
@@ -156,7 +159,7 @@
     <div *ngIf="activeTab === 'profile'">
       <div class="bg-white rounded-2xl shadow-md p-8">
         <h2 class="text-xl font-black mb-6" style="color: var(--rhouses-secondary-dark)">Información de perfil</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <form [formGroup]="profileForm" (ngSubmit)="saveProfile()" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div>
             <label class="block text-sm font-bold text-gray-600 mb-1">Nombre de usuario</label>
             <div class="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold" style="color: var(--rhouses-secondary-dark)">
@@ -169,18 +172,70 @@
               class="px-4 py-3 rounded-xl text-sm font-bold"
               [ngClass]="authService.isOwner()
                 ? 'bg-[#AA4465]/10 text-[#AA4465]'
-                : 'bg-[var(--rhouses-accent)]/10 text-[var(--rhouses-accent)]'"
-            >
+                : 'bg-[var(--rhouses-accent)]/10 text-[var(--rhouses-accent)]'">
               {{ authService.isOwner() ? '🏡 Propietario' : '👤 Cliente' }}
             </div>
           </div>
-          <div class="sm:col-span-2">
-            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500 shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-              <p class="text-sm text-blue-700">La edición de perfil completa (nombre, email, contraseña) estará disponible próximamente.</p>
-            </div>
+
+          <div>
+            <label class="block text-sm font-bold text-gray-600 mb-1">Nombre completo *</label>
+            <input type="text" formControlName="fullName"
+                   class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465]" />
+            <p *ngIf="profileCtrl.fullName.touched && profileCtrl.fullName.invalid" class="text-red-500 text-xs mt-1">
+              Mínimo 3 caracteres.
+            </p>
           </div>
-        </div>
+
+          <div>
+            <label class="block text-sm font-bold text-gray-600 mb-1">Correo electrónico *</label>
+            <input type="email" formControlName="email"
+                   class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465]" />
+            <p *ngIf="profileCtrl.email.touched && profileCtrl.email.invalid" class="text-red-500 text-xs mt-1">
+              Correo electrónico inválido.
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-bold text-gray-600 mb-1">Teléfono *</label>
+            <input type="tel" formControlName="phone"
+                   class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465]" />
+            <p *ngIf="profileCtrl.phone.touched && profileCtrl.phone.invalid" class="text-red-500 text-xs mt-1">
+              Debe tener entre 7 y 15 dígitos.
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-bold text-gray-600 mb-1">Imagen de perfil (URL)</label>
+            <input type="text" formControlName="avatarUrl"
+                   placeholder="https://..."
+                   class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465]" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-bold text-gray-600 mb-1">Nueva contraseña</label>
+            <input type="password" formControlName="password"
+                   class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465]" />
+            <p class="text-xs text-gray-400 mt-1">Déjalo vacío para conservar la actual.</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-bold text-gray-600 mb-1">Confirmar contraseña</label>
+            <input type="password" formControlName="confirmPassword"
+                   class="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465]" />
+            <p *ngIf="profileForm.touched && profileForm.errors?.['passwordsMismatch']" class="text-red-500 text-xs mt-1">
+              Las contraseñas no coinciden.
+            </p>
+          </div>
+
+          <div class="sm:col-span-2 flex justify-end pt-2">
+            <button type="submit"
+                    [disabled]="isSavingProfile || isLoadingProfile"
+                    class="px-6 py-3 rounded-xl text-white font-bold text-sm hover:opacity-90 transition-all shadow-md disabled:opacity-50"
+                    style="background-color: var(--rhouses-accent)">
+              {{ isSavingProfile ? 'Guardando...' : 'Guardar cambios' }}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
 

@@ -8,6 +8,15 @@ interface CalendarDay {
   isCurrentMonth: boolean;
   isToday: boolean;
   packages: RentalPackageResponse[];
+  reservations: ReservationOverlay[];
+}
+
+export interface ReservationOverlay {
+  id: string;
+  rentalCode: string;
+  checkInDate: string;
+  checkOutDate: string;
+  state: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED';
 }
 
 @Component({
@@ -28,6 +37,18 @@ interface CalendarDay {
       white-space: nowrap;
       color: white;
       font-weight: 600;
+    }
+    .rental-pill {
+      display: block;
+      font-size: 9px;
+      line-height: 1.2;
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: white;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   `],
   template: `
@@ -81,6 +102,12 @@ interface CalendarDay {
         <div class="flex items-center gap-1.5">
           <span class="w-3 h-3 rounded-sm" style="background:#2CA58D"></span> Ambas opciones
         </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-3 h-3 rounded-sm" style="background:#f59e0b"></span> Reserva pendiente
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-3 h-3 rounded-sm" style="background:#166534"></span> Reserva confirmada
+        </div>
       </div>
 
       <!-- Días de la semana -->
@@ -121,6 +148,23 @@ interface CalendarDay {
                   class="text-center text-gray-400 font-semibold"
                   style="font-size:9px">
               +{{ cell.packages.length - 2 }} más
+            </span>
+          </div>
+
+          <!-- Overlay de reservas -->
+          <div *ngIf="cell.isCurrentMonth && cell.reservations.length > 0" class="flex flex-col gap-0.5 mt-1">
+            <span *ngFor="let reservation of cell.reservations.slice(0, 1)"
+                  class="rental-pill"
+                  [style.background]="getReservationColor(reservation.state)">
+              <ng-container *ngIf="isReservationStartDay(cell.date, reservation)">
+                {{ reservation.state === 'PENDING' ? 'Pendiente' : 'Confirmada' }}
+              </ng-container>
+              <ng-container *ngIf="!isReservationStartDay(cell.date, reservation)">&nbsp;</ng-container>
+            </span>
+            <span *ngIf="cell.reservations.length > 1"
+                  class="text-center text-gray-400 font-semibold"
+                  style="font-size:9px">
+              +{{ cell.reservations.length - 1 }} reserva{{ cell.reservations.length - 1 !== 1 ? 's' : '' }}
             </span>
           </div>
 
@@ -168,6 +212,7 @@ interface CalendarDay {
 export class AvailabilityCalendarComponent implements OnInit, OnChanges {
 
   @Input() packages: RentalPackageResponse[] = [];
+  @Input() reservations: ReservationOverlay[] = [];
 
   weekDays    = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
   calendarDays: CalendarDay[] = [];
@@ -201,7 +246,9 @@ export class AvailabilityCalendarComponent implements OnInit, OnChanges {
   }
 
   ngOnInit(): void  { this.buildCalendar(); }
-  ngOnChanges(c: SimpleChanges): void { if (c['packages']) this.buildCalendar(); }
+  ngOnChanges(c: SimpleChanges): void {
+    if (c['packages'] || c['reservations']) this.buildCalendar();
+  }
 
   prevMonth(): void {
     if (this.currentMonth === 0) { this.currentMonth = 11; this.currentYear--; }
@@ -240,12 +287,30 @@ export class AvailabilityCalendarComponent implements OnInit, OnChanges {
         return date >= s && date <= e;
       });
 
-      return { date, dayNumber: date.getDate(), isCurrentMonth, isToday, packages: pkgsForDay };
+      const reservationsForDay = this.reservations.filter((reservation) => {
+        if (reservation.state !== 'PENDING' && reservation.state !== 'CONFIRMED') return false;
+        const start = this.parseDate(reservation.checkInDate);
+        const end = this.parseDate(reservation.checkOutDate);
+        return date >= start && date < end;
+      });
+
+      return {
+        date,
+        dayNumber: date.getDate(),
+        isCurrentMonth,
+        isToday,
+        packages: pkgsForDay,
+        reservations: reservationsForDay
+      };
     });
   }
 
   isStartDay(date: Date, pkg: RentalPackageResponse): boolean {
     return this.parseDate(pkg.startingDate).toDateString() === date.toDateString();
+  }
+
+  isReservationStartDay(date: Date, reservation: ReservationOverlay): boolean {
+    return this.parseDate(reservation.checkInDate).toDateString() === date.toDateString();
   }
 
   parseDate(dateStr: string): Date {
@@ -275,5 +340,10 @@ export class AvailabilityCalendarComponent implements OnInit, OnChanges {
       ENTIRE_HOUSE: '#AA446518', ROOMS: '#7C5CBF18', BOTH: '#2CA58D18'
     };
     return map[type] ?? '#E06C3B18';
+  }
+
+  getReservationColor(state: ReservationOverlay['state']): string {
+    if (state === 'PENDING') return '#f59e0b';
+    return '#166534';
   }
 }
