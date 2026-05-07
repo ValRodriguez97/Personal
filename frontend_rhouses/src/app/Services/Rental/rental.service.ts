@@ -28,6 +28,10 @@ export interface RentalResponse {
   depositRequired?: number;
 }
 
+export interface PayDepositRequest {
+  amount: number;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -71,6 +75,33 @@ export class RentalService {
   cancelByCustomer(rentalId: string, customerId: string): Observable<ApiResponse<RentalResponse>> {
     return this.http.delete<ApiResponse<RentalResponse>>(
       `${this.base}/${rentalId}?customerId=${customerId}`, { headers: this.headers() }
+    );
+  }
+
+  /**
+   * US08 / US12 – El cliente paga el anticipo (20%) de su reserva.
+   * Llama a POST /api/rentals/{rentalId}/payment?ownerId=... en el backend existente
+   * pero desde la perspectiva del cliente registramos el pago contra
+   * el endpoint que ya existe: el propietario lo confirma.
+   *
+   * NOTA: Si el backend crea el endpoint /deposit específico para cliente,
+   * cambiar la URL aquí. Por ahora usamos el endpoint genérico de pago.
+   */
+  payDeposit(rentalId: string, amount: number, ownerId: string): Observable<ApiResponse<void>> {
+    return this.http.post<ApiResponse<void>>(
+      `${this.base}/${rentalId}/payment?ownerId=${ownerId}&amount=${amount}`,
+      {},
+      { headers: this.headers() }
+    );
+  }
+
+  /**
+   * Listar reservas de un propietario (para el calendario).
+   * GET /api/rentals/owner/{ownerId}
+   */
+  findByOwner(ownerId: string): Observable<ApiResponse<RentalResponse[]>> {
+    return this.http.get<ApiResponse<RentalResponse[]>>(
+      `${this.base}/owner/${ownerId}`, { headers: this.headers() }
     );
   }
 }
