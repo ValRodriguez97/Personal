@@ -16,18 +16,27 @@ import { NavbarComponent } from '../homepage/components/navbar/navbar.component'
   styleUrls: ['./owner-reservations.component.css']
 })
 export class OwnerReservationsComponent implements OnInit {
-  private auth = inject(AuthService);
-  private rentalSvc = inject(RentalService);
-  private houseSvc = inject(CountryHouseService);
-  private toastr = inject(ToastrService);
-  private router = inject(Router);
-  private destroyRef = inject(DestroyRef);
+  private auth        = inject(AuthService);
+  private rentalSvc   = inject(RentalService);
+  private houseSvc    = inject(CountryHouseService);
+  private toastr      = inject(ToastrService);
+  private router      = inject(Router);
+  private destroyRef  = inject(DestroyRef);
 
   rentals: RentalResponse[] = [];
   ownerHouseCodes = new Set<string>();
-  isLoading = true;
-  confirmingId: string | null = null; // ID de la reserva que se está confirmando
+  isLoading       = true;
+
+  /** ID de la reserva que está siendo procesada (confirmar/cancelar) */
+  processingId: string | null = null;
+
   selectedTab: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'ALL' = 'ALL';
+
+  // Modal de confirmación de pago
+  confirmTarget: RentalResponse | null = null;
+  // Modal de cancelación
+  cancelTarget: RentalResponse | null = null;
+  isCancelling = false;
 
   ngOnInit(): void {
     const ownerId = this.auth.user()?.id;
@@ -55,50 +64,92 @@ export class OwnerReservationsComponent implements OnInit {
     return filtered.filter((r) => r.state === this.selectedTab);
   }
 
-  /**
-   * El propietario confirma el pago del 20% de anticipo de una reserva.
-   * Llama al endpoint correcto con su propio ownerId.
-   */
-  confirmPayment(rental: RentalResponse): void {
+  get pendingCount():   number { return this.rentals.filter(r => this.ownerHouseCodes.has(r.countryHouseCode) && r.state === 'PENDING').length; }
+  get confirmedCount(): number { return this.rentals.filter(r => this.ownerHouseCodes.has(r.countryHouseCode) && r.state === 'CONFIRMED').length; }
+
+  // ── Confirmar pago (propietario) ─────────────────────────────────────────
+
+  openConfirmModal(rental: RentalResponse): void {
+    this.confirmTarget = rental;
+  }
+
+  closeConfirmModal(): void {
+    this.confirmTarget = null;
+  }
+
+  confirmPayment(): void {
+    if (!this.confirmTarget) return;
     const ownerId = this.auth.user()?.id;
     if (!ownerId) return;
 
-    this.confirmingId = rental.id;
+    const rental = this.confirmTarget;
+    this.processingId = rental.id;
+    this.confirmTarget = null;
+
     const amount = Math.ceil(rental.totalPrice * 0.2);
 
     this.rentalSvc.registerPaymentAsOwner(rental.id, amount, ownerId).subscribe({
       next: () => {
-        // El servicio ya actualiza el estado en el cache reactivo a CONFIRMED
-        this.toastr.success(`Reserva ${rental.rentalCode} confirmada`, 'Pago registrado');
-        this.confirmingId = null;
+        this.toastr.success(
+          `Reserva ${rental.rentalCode} confirmada. El cliente ha sido notificado.`,
+          '✅ Pago confirmado'
+        );
+        this.processingId = null;
       },
       error: (err) => {
         this.toastr.error(err?.error?.message ?? 'No se pudo confirmar el pago', 'Error');
-        this.confirmingId = null;
+        this.processingId = null;
       }
     });
   }
 
-  keepPending(): void {
-    this.toastr.info('La reserva permanece en estado pendiente', 'Sin cambios');
+  // ── Cancelar reserva (propietario) ───────────────────────────────────────
+
+  openCancelModal(rental: RentalResponse): void {
+    this.cancelTarget = rental;
   }
 
-  cancelExpired(rental: RentalResponse): void {
+  closeCancelModal(): void {
+    this.cancelTarget = null;
+  }
+
+  confirmCancel(): void {
+    if (!this.cancelTarget) return;
     const ownerId = this.auth.user()?.id;
     if (!ownerId) return;
 
-    this.rentalSvc.updateRentalStateLocal(rental.id, 'EXPIRED');
-    this.toastr.warning(`Reserva ${rental.rentalCode} marcada como vencida`, 'Reserva expirada');
+    const rental = this.cancelTarget;
+    this.isCancelling  = true;
+    this.cancelTarget  = null;
+
+    this.rentalSvc.cancelAsOwner(rental.id, ownerId).subscribe({
+      next: () => {
+        this.toastr.warning(
+          `Reserva ${rental.rentalCode} cancelada. El cliente ha sido notificado.`,
+          '❌ Reserva cancelada'
+        );
+        this.isCancelling = false;
+      },
+      error: (err) => {
+        this.toastr.error(err?.error?.message ?? 'No se pudo cancelar la reserva', 'Error');
+        this.isCancelling = false;
+      }
+    });
   }
 
-  canCancelExpired(rental: RentalResponse): boolean {
+  canMarkExpired(rental: RentalResponse): boolean {
     if (rental.state !== 'PENDING') return false;
     const checkIn = new Date(rental.checkInDate.split('T')[0] + 'T00:00:00').getTime();
     return checkIn < new Date().setHours(0, 0, 0, 0);
   }
 
-  isConfirming(rentalId: string): boolean {
-    return this.confirmingId === rentalId;
+  markExpired(rental: RentalResponse): void {
+    this.rentalSvc.updateRentalStateLocal(rental.id, 'EXPIRED');
+    this.toastr.warning(`Reserva ${rental.rentalCode} marcada como vencida`, 'Vencida');
+  }
+
+  isProcessing(rentalId: string): boolean {
+    return this.processingId === rentalId;
   }
 
   formatDate(date: string): string {
@@ -111,7 +162,9 @@ export class OwnerReservationsComponent implements OnInit {
     this.rentalSvc.observeRentals()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((rentals) => {
-        this.rentals = [...rentals].sort((a, b) => b.rentalDayMade.localeCompare(a.rentalDayMade));
+        this.rentals = [...rentals].sort((a, b) =>
+          b.rentalDayMade.localeCompare(a.rentalDayMade)
+        );
         this.isLoading = false;
       });
   }
@@ -119,9 +172,7 @@ export class OwnerReservationsComponent implements OnInit {
   private hydrateOwnerRentals(ownerId: string): void {
     this.rentalSvc.findByOwner(ownerId).subscribe({
       next: () => {},
-      error: () => {
-        this.toastr.error('No se pudieron cargar las reservas', 'Error');
-      }
+      error: () => { this.toastr.error('No se pudieron cargar las reservas', 'Error'); }
     });
   }
 }

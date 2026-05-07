@@ -1,14 +1,14 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { BehaviorSubject, map, tap, of } from 'rxjs';
+import { BehaviorSubject, map, tap } from 'rxjs';
 
 export interface RentalRequest {
   countryHouseCode: string;
   checkInDate: string;       // YYYY-MM-DD
   numberNights: number;
   contactPhoneNumber: string;
-  bedroomCodes?: string[];   // solo si typeRental === 'ROOMS'
+  bedroomCodes?: string[];
   typeRental: 'ENTIRE_HOUSE' | 'ROOMS';
 }
 
@@ -50,17 +50,15 @@ export class RentalService {
     return token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : new HttpHeaders();
   }
 
-  /** US15 – Crear reserva */
+  /** Crear reserva */
   makeRental(customerId: string | null, body: RentalRequest): Observable<ApiResponse<RentalResponse>> {
     const params = customerId ? `?customerId=${customerId}` : '';
     return this.http.post<ApiResponse<RentalResponse>>(
       `${this.base}${params}`, body, { headers: this.headers() }
-    ).pipe(
-      tap((res) => this.upsertRental(res?.data))
-    );
+    ).pipe(tap((res) => this.upsertRental(res?.data)));
   }
 
-  /** US09 – Consultar por código */
+  /** Consultar por código */
   findByCode(rentalCode: string): Observable<ApiResponse<RentalResponse>> {
     return this.http.get<ApiResponse<RentalResponse>>(`${this.base}/${rentalCode}`);
   }
@@ -69,24 +67,20 @@ export class RentalService {
   findByCustomer(customerId: string): Observable<ApiResponse<RentalResponse[]>> {
     return this.http.get<ApiResponse<RentalResponse[]>>(
       `${this.base}/customer/${customerId}`, { headers: this.headers() }
-    ).pipe(
-      tap((res) => this.hydrateRentals(res?.data ?? []))
-    );
+    ).pipe(tap((res) => this.hydrateRentals(res?.data ?? [])));
   }
 
-  /** US13 – Cancelar reserva (cliente) */
+  /** Cancelar reserva (cliente) */
   cancelByCustomer(rentalId: string, customerId: string): Observable<ApiResponse<RentalResponse>> {
     return this.http.delete<ApiResponse<RentalResponse>>(
       `${this.base}/${rentalId}?customerId=${customerId}`, { headers: this.headers() }
-    ).pipe(
-      tap((res) => this.upsertRental(res?.data))
-    );
+    ).pipe(tap((res) => this.upsertRental(res?.data)));
   }
 
   /**
-   * Propietario confirma/registra un pago de reserva.
-   * Requiere ownerId del propietario de la casa.
-   * Solo debe llamarse desde vistas del propietario (owner-reservations).
+   * El propietario confirma el pago del anticipo.
+   * Esto cambia el estado de la reserva a CONFIRMED en el backend
+   * y el cache reactivo se actualiza para todas las vistas.
    */
   registerPaymentAsOwner(rentalId: string, amount: number, ownerId: string): Observable<ApiResponse<void>> {
     return this.http.post<ApiResponse<void>>(
@@ -95,7 +89,7 @@ export class RentalService {
       { headers: this.headers() }
     ).pipe(
       tap(() => {
-        // Actualizar estado localmente a CONFIRMED después de que el propietario confirme
+        // Actualizar estado local a CONFIRMED inmediatamente
         const rental = this.rentalsCache$.value[rentalId];
         if (rental) this.upsertRental({ ...rental, state: 'CONFIRMED' });
       })
@@ -103,16 +97,36 @@ export class RentalService {
   }
 
   /**
-   * Listar reservas de un propietario.
-   * GET /api/rentals/owner/{ownerId}
+   * El propietario cancela una reserva.
    */
+  cancelAsOwner(rentalId: string, ownerId: string): Observable<ApiResponse<void>> {
+    return this.http.post<ApiResponse<void>>(
+      `${this.base}/${rentalId}/cancel?ownerId=${ownerId}`,
+      {},
+      { headers: this.headers() }
+    ).pipe(
+      tap(() => {
+        const rental = this.rentalsCache$.value[rentalId];
+        if (rental) this.upsertRental({ ...rental, state: 'CANCELLED' });
+      })
+    );
+  }
+
+  /** Listar reservas de un propietario */
   findByOwner(ownerId: string): Observable<ApiResponse<RentalResponse[]>> {
     return this.http.get<ApiResponse<RentalResponse[]>>(
       `${this.base}/owner/${ownerId}`, { headers: this.headers() }
-    ).pipe(
-      tap((res) => this.hydrateRentals(res?.data ?? []))
-    );
+    ).pipe(tap((res) => this.hydrateRentals(res?.data ?? [])));
   }
+
+  /** Reservas expiradas del propietario */
+  getExpiredRentals(ownerId: string): Observable<ApiResponse<RentalResponse[]>> {
+    return this.http.get<ApiResponse<RentalResponse[]>>(
+      `${this.base}/expired?ownerId=${ownerId}`, { headers: this.headers() }
+    ).pipe(tap((res) => this.hydrateRentals(res?.data ?? [])));
+  }
+
+  // ── Observadores reactivos ────────────────────────────────────────────────
 
   observeRentals(): Observable<RentalResponse[]> {
     return this.rentalsCache$.asObservable().pipe(
@@ -124,15 +138,13 @@ export class RentalService {
     return this.observeRentals().pipe(
       map((rentals) =>
         rentals.filter((r) =>
-          r.countryHouseCode === houseCode && (r.state === 'PENDING' || r.state === 'CONFIRMED')
+          r.countryHouseCode === houseCode &&
+          (r.state === 'PENDING' || r.state === 'CONFIRMED')
         )
       )
     );
   }
 
-  /**
-   * Observa una reserva específica por ID para actualización reactiva en tiempo real.
-   */
   observeRentalById(rentalId: string): Observable<RentalResponse | undefined> {
     return this.rentalsCache$.asObservable().pipe(
       map((cache) => cache[rentalId])
@@ -147,16 +159,14 @@ export class RentalService {
 
   hasActiveOverlap(houseCode: string, checkIn: string, nights: number): boolean {
     if (!houseCode || !checkIn || nights <= 0) return false;
-
     const cache = this.rentalsCache$.value;
     const rentals = Object.values(cache).filter((r) =>
-      r.countryHouseCode === houseCode && (r.state === 'PENDING' || r.state === 'CONFIRMED')
+      r.countryHouseCode === houseCode &&
+      (r.state === 'PENDING' || r.state === 'CONFIRMED')
     );
-
     const searchStart = this.parseDate(checkIn);
     const searchEnd = new Date(searchStart);
     searchEnd.setDate(searchEnd.getDate() + nights);
-
     return rentals.some((r) => {
       const rentalStart = this.parseDate(r.checkInDate);
       const rentalEnd = this.parseDate(r.checkOutDate);
