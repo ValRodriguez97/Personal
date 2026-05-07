@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { BehaviorSubject, map, tap } from 'rxjs';
+import { BehaviorSubject, map, tap, of } from 'rxjs';
 
 export interface RentalRequest {
   countryHouseCode: string;
@@ -28,10 +28,6 @@ export interface RentalResponse {
   ownerBankAccount?: string;
   depositRequired?: number;
   ownerId?: string;
-}
-
-export interface PayDepositRequest {
-  amount: number;
 }
 
 export interface ApiResponse<T> {
@@ -88,29 +84,26 @@ export class RentalService {
   }
 
   /**
-   * US08 / US12 – El cliente paga el anticipo (20%) de su reserva.
-   * Llama a POST /api/rentals/{rentalId}/payment?ownerId=... en el backend existente
-   * pero desde la perspectiva del cliente registramos el pago contra
-   * el endpoint que ya existe: el propietario lo confirma.
-   *
-   * NOTA: Si el backend crea el endpoint /deposit específico para cliente,
-   * cambiar la URL aquí. Por ahora usamos el endpoint genérico de pago.
+   * Propietario confirma/registra un pago de reserva.
+   * Requiere ownerId del propietario de la casa.
+   * Solo debe llamarse desde vistas del propietario (owner-reservations).
    */
-  payDeposit(rentalId: string, amount: number, ownerId?: string): Observable<ApiResponse<RentalResponse>> {
-    const query = ownerId
-      ? `ownerId=${ownerId}&amount=${amount}`
-      : `amount=${amount}`;
-    return this.http.post<ApiResponse<RentalResponse>>(
-      `${this.base}/${rentalId}/payment?${query}`,
+  registerPaymentAsOwner(rentalId: string, amount: number, ownerId: string): Observable<ApiResponse<void>> {
+    return this.http.post<ApiResponse<void>>(
+      `${this.base}/${rentalId}/payment?ownerId=${ownerId}&amount=${amount}`,
       {},
       { headers: this.headers() }
     ).pipe(
-      tap((res) => this.upsertRental(res?.data))
+      tap(() => {
+        // Actualizar estado localmente a CONFIRMED después de que el propietario confirme
+        const rental = this.rentalsCache$.value[rentalId];
+        if (rental) this.upsertRental({ ...rental, state: 'CONFIRMED' });
+      })
     );
   }
 
   /**
-   * Listar reservas de un propietario (para el calendario).
+   * Listar reservas de un propietario.
    * GET /api/rentals/owner/{ownerId}
    */
   findByOwner(ownerId: string): Observable<ApiResponse<RentalResponse[]>> {
@@ -134,6 +127,15 @@ export class RentalService {
           r.countryHouseCode === houseCode && (r.state === 'PENDING' || r.state === 'CONFIRMED')
         )
       )
+    );
+  }
+
+  /**
+   * Observa una reserva específica por ID para actualización reactiva en tiempo real.
+   */
+  observeRentalById(rentalId: string): Observable<RentalResponse | undefined> {
+    return this.rentalsCache$.asObservable().pipe(
+      map((cache) => cache[rentalId])
     );
   }
 
@@ -171,7 +173,7 @@ export class RentalService {
     this.rentalsCache$.next(next);
   }
 
-  private upsertRental(rental: RentalResponse | undefined): void {
+  upsertRental(rental: RentalResponse | undefined): void {
     if (!rental?.id) return;
     this.rentalsCache$.next({
       ...this.rentalsCache$.value,

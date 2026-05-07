@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -6,6 +6,7 @@ import { ToastrService } from 'ngx-toastr';
 import { AuthService } from '../../Services/Auth/Auth.service';
 import { NavbarComponent } from '../homepage/components/navbar/navbar.component';
 import { RentalService, RentalResponse } from '../../Services/Rental/rental.service';
+import { Subscription } from 'rxjs';
 
 // ── View Model ─────────────────────────────────────────────────────────────
 export interface RentalVM extends RentalResponse {
@@ -15,6 +16,7 @@ export interface RentalVM extends RentalResponse {
   uiBadge?: { label: string; class: string; icon: string };
   uiCanCancel?: boolean;
   uiCanPay?: boolean;
+  uiDepositNotified?: boolean; // cliente ya notificó el pago
 }
 
 @Component({
@@ -24,7 +26,7 @@ export interface RentalVM extends RentalResponse {
   templateUrl: './my-rentals.component.html',
   styleUrls: ['./my-rentals.component.css']
 })
-export class MyRentalsComponent implements OnInit {
+export class MyRentalsComponent implements OnInit, OnDestroy {
   private rentalSvc = inject(RentalService);
   private router    = inject(Router);
   private toastr    = inject(ToastrService);
@@ -32,6 +34,9 @@ export class MyRentalsComponent implements OnInit {
 
   rentals:   RentalVM[] = [];
   isLoading  = true;
+
+  // IDs de reservas donde el cliente ya notificó el pago (persiste en sesión)
+  private notifiedPayments = new Set<string>();
 
   // Búsqueda por código
   searchCode   = '';
@@ -53,6 +58,8 @@ export class MyRentalsComponent implements OnInit {
   pendingCount   = 0;
   confirmedCount = 0;
 
+  private rentalsSubscription?: Subscription;
+
   private readonly stateMap: Record<string, { label: string; class: string; icon: string }> = {
     PENDING:   { label: 'Pendiente',  class: 'bg-yellow-100 text-yellow-800 border-yellow-300',  icon: '⏳' },
     CONFIRMED: { label: 'Confirmada', class: 'bg-green-100  text-green-800  border-green-300',   icon: '✅' },
@@ -68,7 +75,28 @@ export class MyRentalsComponent implements OnInit {
       this.router.navigate(['/']);
       return;
     }
+
+    // Escuchar cambios reactivos del cache (para que los cambios del propietario se reflejen)
+    this.rentalsSubscription = this.rentalSvc.observeRentals().subscribe((allRentals) => {
+      const customerId = this.authService.user()?.id;
+      if (!customerId) return;
+      const myRentals = allRentals.filter(r => r.customerUserName === this.authService.user()?.userName);
+      if (myRentals.length > 0 || !this.isLoading) {
+        this.rentals = myRentals.map(r => this.mapRentalToVM(r));
+        this.updateCounters();
+        // Actualizar searchResult si está visible
+        if (this.searchResult) {
+          const updated = myRentals.find(r => r.id === this.searchResult!.id);
+          if (updated) this.searchResult = this.mapRentalToVM(updated);
+        }
+      }
+    });
+
     this.loadRentals(user.id);
+  }
+
+  ngOnDestroy(): void {
+    this.rentalsSubscription?.unsubscribe();
   }
 
   loadRentals(customerId: string): void {
@@ -139,7 +167,7 @@ export class MyRentalsComponent implements OnInit {
     });
   }
 
-  // ── Pago del anticipo ────────────────────────────────────────────────────
+  // ── Notificación de pago del anticipo (CLIENTE) ──────────────────────────
   openPayModal(rental: RentalVM): void {
     this.payTarget    = rental;
     this.paymentStep  = 'confirm';
@@ -147,66 +175,65 @@ export class MyRentalsComponent implements OnInit {
   }
 
   closePayModal(): void {
-    if (this.isPaying) return; // no cerrar mientras procesa
+    if (this.isPaying) return;
     this.payTarget   = null;
     this.paymentStep = 'confirm';
   }
 
-  /** Monto del anticipo (20% del total) */
   get depositAmount(): number {
     return this.payTarget ? Math.ceil(this.payTarget.totalPrice * 0.2) : 0;
   }
 
   /**
-   * Confirma el pago del anticipo.
-   * En la implementación actual el backend solo permite que el PROPIETARIO
-   * registre pagos (el ownerId viene de la casa de la reserva).
-   * Para esta fase frontend simulamos la confirmación mostrando el estado
-   * actualizado: el cliente ve que ya "registró" su intención de pago y
-   * el propietario la confirma desde su panel.
-   *
-   * Si el backend añade el endpoint /deposit para clientes, solo hay que
-   * cambiar la llamada aquí a: this.rentalSvc.payDeposit(rentalId, amount)
+   * El cliente NO puede llamar al endpoint de pago del propietario (requiere ownerId).
+   * En su lugar, mostramos las instrucciones de transferencia y marcamos localmente
+   * que el cliente "notificó" el pago. El propietario deberá confirmarlo desde su panel.
    */
   confirmPayment(): void {
     if (!this.payTarget) return;
     this.isPaying    = true;
     this.paymentStep = 'processing';
-    const current = this.payTarget;
-    this.rentalSvc.payDeposit(current.id, this.depositAmount, current.ownerId).subscribe({
-      next: (res) => {
-        const updated = res?.data
-          ? this.mapRentalToVM(res.data)
-          : this.mapRentalToVM({ ...current, state: 'CONFIRMED' });
+    const rentalId = this.payTarget.id;
 
-        const idx = this.rentals.findIndex((r) => r.id === updated.id);
-        if (idx !== -1) {
-          this.rentals[idx] = updated;
-          this.updateCounters();
-        }
-        if (this.searchResult?.id === updated.id) this.searchResult = updated;
+    // Simular procesamiento (el cliente solo notifica, no llama al backend)
+    setTimeout(() => {
+      // Marcar localmente como notificado
+      this.notifiedPayments.add(rentalId);
 
-        this.paymentStep = 'success';
-        this.isPaying = false;
-      },
-      error: (err) => {
-        this.toastr.error(err?.error?.message ?? 'No se pudo registrar el anticipo', 'Error');
-        this.paymentStep = 'confirm';
-        this.isPaying = false;
+      // Actualizar VM en la lista para ocultar el botón de pago
+      const idx = this.rentals.findIndex(r => r.id === rentalId);
+      if (idx !== -1) {
+        this.rentals[idx] = {
+          ...this.rentals[idx],
+          uiCanPay: false,
+          uiDepositNotified: true
+        };
       }
-    });
+      if (this.searchResult?.id === rentalId) {
+        this.searchResult = {
+          ...this.searchResult,
+          uiCanPay: false,
+          uiDepositNotified: true
+        };
+      }
+
+      this.paymentStep = 'success';
+      this.isPaying = false;
+    }, 1200);
   }
 
   // ── Mapeo a ViewModel ───────────────────────────────────────────────────
   private mapRentalToVM(rental: RentalResponse): RentalVM {
+    const alreadyNotified = this.notifiedPayments.has(rental.id);
     return {
       ...rental,
-      uiDayMade:  this.formatDate(rental.rentalDayMade),
-      uiCheckIn:  this.formatDate(rental.checkInDate),
-      uiCheckOut: this.formatDate(rental.checkOutDate),
-      uiBadge:    this.stateMap[rental.state] ?? this.defaultBadge,
-      uiCanCancel: rental.state === 'PENDING',
-      uiCanPay:    rental.state === 'PENDING'
+      uiDayMade:        this.formatDate(rental.rentalDayMade),
+      uiCheckIn:        this.formatDate(rental.checkInDate),
+      uiCheckOut:       this.formatDate(rental.checkOutDate),
+      uiBadge:          this.stateMap[rental.state] ?? this.defaultBadge,
+      uiCanCancel:      rental.state === 'PENDING',
+      uiCanPay:         rental.state === 'PENDING' && !alreadyNotified,
+      uiDepositNotified: alreadyNotified
     };
   }
 

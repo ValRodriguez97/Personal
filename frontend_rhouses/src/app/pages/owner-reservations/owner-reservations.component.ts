@@ -26,6 +26,7 @@ export class OwnerReservationsComponent implements OnInit {
   rentals: RentalResponse[] = [];
   ownerHouseCodes = new Set<string>();
   isLoading = true;
+  confirmingId: string | null = null; // ID de la reserva que se está confirmando
   selectedTab: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'ALL' = 'ALL';
 
   ngOnInit(): void {
@@ -54,20 +55,26 @@ export class OwnerReservationsComponent implements OnInit {
     return filtered.filter((r) => r.state === this.selectedTab);
   }
 
+  /**
+   * El propietario confirma el pago del 20% de anticipo de una reserva.
+   * Llama al endpoint correcto con su propio ownerId.
+   */
   confirmPayment(rental: RentalResponse): void {
     const ownerId = this.auth.user()?.id;
     if (!ownerId) return;
+
+    this.confirmingId = rental.id;
     const amount = Math.ceil(rental.totalPrice * 0.2);
 
-    this.rentalSvc.payDeposit(rental.id, amount, ownerId).subscribe({
-      next: (res) => {
-        if (!res?.data) {
-          this.rentalSvc.updateRentalStateLocal(rental.id, 'CONFIRMED');
-        }
+    this.rentalSvc.registerPaymentAsOwner(rental.id, amount, ownerId).subscribe({
+      next: () => {
+        // El servicio ya actualiza el estado en el cache reactivo a CONFIRMED
         this.toastr.success(`Reserva ${rental.rentalCode} confirmada`, 'Pago registrado');
+        this.confirmingId = null;
       },
       error: (err) => {
         this.toastr.error(err?.error?.message ?? 'No se pudo confirmar el pago', 'Error');
+        this.confirmingId = null;
       }
     });
   }
@@ -77,6 +84,9 @@ export class OwnerReservationsComponent implements OnInit {
   }
 
   cancelExpired(rental: RentalResponse): void {
+    const ownerId = this.auth.user()?.id;
+    if (!ownerId) return;
+
     this.rentalSvc.updateRentalStateLocal(rental.id, 'EXPIRED');
     this.toastr.warning(`Reserva ${rental.rentalCode} marcada como vencida`, 'Reserva expirada');
   }
@@ -85,6 +95,10 @@ export class OwnerReservationsComponent implements OnInit {
     if (rental.state !== 'PENDING') return false;
     const checkIn = new Date(rental.checkInDate.split('T')[0] + 'T00:00:00').getTime();
     return checkIn < new Date().setHours(0, 0, 0, 0);
+  }
+
+  isConfirming(rentalId: string): boolean {
+    return this.confirmingId === rentalId;
   }
 
   formatDate(date: string): string {

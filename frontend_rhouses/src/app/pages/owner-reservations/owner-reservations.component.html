@@ -31,35 +31,68 @@
         <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div>
             <p class="font-mono font-black text-sm" style="color: var(--rhouses-secondary-dark)">{{ rental.rentalCode }}</p>
-            <p class="text-xs text-gray-400">{{ rental.countryHouseCode }} · {{ formatDate(rental.checkInDate) }} → {{ formatDate(rental.checkOutDate) }}</p>
-            <p class="text-sm mt-2 text-gray-600">Total: <strong>$ {{ rental.totalPrice | number:'1.0-0' }}</strong></p>
+            <p class="text-xs text-gray-400">
+              {{ rental.countryHouseCode }} ·
+              {{ formatDate(rental.checkInDate) }} → {{ formatDate(rental.checkOutDate) }}
+            </p>
+            <p class="text-sm mt-2 text-gray-600">
+              Total: <strong>$ {{ rental.totalPrice | number:'1.0-0' }}</strong>
+              <span class="ml-3 text-xs text-gray-400">
+                Anticipo (20%): <strong>$ {{ rental.totalPrice * 0.2 | number:'1.0-0' }}</strong>
+              </span>
+            </p>
+            <p *ngIf="rental.customerUserName" class="text-xs text-gray-400 mt-1">
+              Cliente: <strong>{{ rental.customerUserName }}</strong>
+            </p>
           </div>
 
-          <span class="px-3 py-1 rounded-full text-xs font-bold"
+          <span class="px-3 py-1.5 rounded-full text-xs font-bold shrink-0"
                 [ngClass]="{
                   'bg-yellow-100 text-yellow-800': rental.state === 'PENDING',
                   'bg-green-100 text-green-800': rental.state === 'CONFIRMED',
                   'bg-red-100 text-red-700': rental.state === 'CANCELLED',
                   'bg-gray-100 text-gray-600': rental.state === 'EXPIRED'
                 }">
-            {{ rental.state }}
+            <span *ngIf="rental.state === 'PENDING'">⏳ Pendiente</span>
+            <span *ngIf="rental.state === 'CONFIRMED'">✅ Confirmada</span>
+            <span *ngIf="rental.state === 'CANCELLED'">❌ Cancelada</span>
+            <span *ngIf="rental.state === 'EXPIRED'">💤 Vencida</span>
           </span>
         </div>
 
-        <div *ngIf="rental.state === 'PENDING'" class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-2">
+        <div *ngIf="rental.state === 'PENDING'" class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-2 items-center">
+
+          <!-- Instrucción de pago -->
+          <p class="text-xs text-gray-500 w-full mb-1">
+            💡 El cliente debe transferir <strong>$ {{ rental.totalPrice * 0.2 | number:'1.0-0' }}</strong> con concepto
+            <strong class="font-mono text-[#AA4465]">{{ rental.rentalCode }}</strong>
+          </p>
+
+          <!-- Botón confirmar pago -->
           <button (click)="confirmPayment(rental)"
-                  class="px-4 py-2 rounded-xl text-sm font-bold text-white hover:opacity-90"
+                  [disabled]="isConfirming(rental.id)"
+                  class="px-4 py-2 rounded-xl text-sm font-bold text-white hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   style="background-color: #166534">
-            Confirmar pago
+            <svg *ngIf="isConfirming(rental.id)" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+            <svg *ngIf="!isConfirming(rental.id)" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>
+            </svg>
+            {{ isConfirming(rental.id) ? 'Confirmando...' : 'Confirmar pago recibido' }}
           </button>
+
           <button (click)="keepPending()"
-                  class="px-4 py-2 rounded-xl text-sm font-bold border border-yellow-300 text-yellow-700 bg-yellow-50 hover:bg-yellow-100">
+                  class="px-4 py-2 rounded-xl text-sm font-bold border border-yellow-300 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-all">
             Mantener pendiente
           </button>
+
           <button *ngIf="canCancelExpired(rental)"
                   (click)="cancelExpired(rental)"
-                  class="px-4 py-2 rounded-xl text-sm font-bold border border-gray-300 text-gray-600 bg-gray-50 hover:bg-gray-100">
-            Cancelar vencida
+                  class="px-4 py-2 rounded-xl text-sm font-bold border border-gray-300 text-gray-600 bg-gray-50 hover:bg-gray-100 transition-all">
+            Marcar como vencida
           </button>
         </div>
       </article>
