@@ -1,14 +1,21 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
+<<<<<<< HEAD
+=======
 import { BehaviorSubject, map, tap } from 'rxjs';
+>>>>>>> devVal
 
 export interface RentalRequest {
   countryHouseCode: string;
   checkInDate: string;       // YYYY-MM-DD
   numberNights: number;
   contactPhoneNumber: string;
+<<<<<<< HEAD
+  bedroomCodes?: string[];   // solo si typeRental === 'ROOMS'
+=======
   bedroomCodes?: string[];
+>>>>>>> devVal
   typeRental: 'ENTIRE_HOUSE' | 'ROOMS';
 }
 
@@ -27,7 +34,10 @@ export interface RentalResponse {
   customerUserName: string | null;
   ownerBankAccount?: string;
   depositRequired?: number;
+<<<<<<< HEAD
+=======
   ownerId?: string;
+>>>>>>> devVal
 }
 
 export interface ApiResponse<T> {
@@ -39,7 +49,10 @@ export interface ApiResponse<T> {
 @Injectable({ providedIn: 'root' })
 export class RentalService {
   private readonly base = 'http://localhost:8081/api/rentals';
+<<<<<<< HEAD
+=======
   private readonly rentalsCache$ = new BehaviorSubject<Record<string, RentalResponse>>({});
+>>>>>>> devVal
 
   constructor(private http: HttpClient) {}
 
@@ -50,15 +63,26 @@ export class RentalService {
     return token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : new HttpHeaders();
   }
 
+<<<<<<< HEAD
+  /** US15 – Crear reserva */
+=======
   /** Crear reserva */
+>>>>>>> devVal
   makeRental(customerId: string | null, body: RentalRequest): Observable<ApiResponse<RentalResponse>> {
     const params = customerId ? `?customerId=${customerId}` : '';
     return this.http.post<ApiResponse<RentalResponse>>(
       `${this.base}${params}`, body, { headers: this.headers() }
+<<<<<<< HEAD
+    );
+  }
+
+  /** US09 – Consultar por código */
+=======
     ).pipe(tap((res) => this.upsertRental(res?.data)));
   }
 
   /** Consultar por código */
+>>>>>>> devVal
   findByCode(rentalCode: string): Observable<ApiResponse<RentalResponse>> {
     return this.http.get<ApiResponse<RentalResponse>>(`${this.base}/${rentalCode}`);
   }
@@ -67,6 +91,17 @@ export class RentalService {
   findByCustomer(customerId: string): Observable<ApiResponse<RentalResponse[]>> {
     return this.http.get<ApiResponse<RentalResponse[]>>(
       `${this.base}/customer/${customerId}`, { headers: this.headers() }
+<<<<<<< HEAD
+    );
+  }
+
+  /** US13 – Cancelar reserva (cliente) */
+  cancelByCustomer(rentalId: string, customerId: string): Observable<ApiResponse<RentalResponse>> {
+    return this.http.delete<ApiResponse<RentalResponse>>(
+      `${this.base}/${rentalId}?customerId=${customerId}`, { headers: this.headers() }
+    );
+  }
+=======
     ).pipe(tap((res) => this.hydrateRentals(res?.data ?? [])));
   }
 
@@ -194,4 +229,23 @@ export class RentalService {
   private parseDate(dateValue: string): Date {
     return new Date(dateValue.split('T')[0] + 'T00:00:00');
   }
+
+  /**
+ * El cliente paga el anticipo (20%) desde su cuenta bancaria.
+ * Confirma la reserva automáticamente si el pago es exitoso.
+ */
+payDeposit(
+  rentalId: string,
+  customerId: string,
+  customerAccountId: string
+): Observable<ApiResponse<RentalResponse>> {
+  return this.http.post<ApiResponse<RentalResponse>>(
+    `${this.base}/${rentalId}/pay?customerId=${customerId}&customerAccountId=${customerAccountId}`,
+    {},
+    { headers: this.headers() }
+  ).pipe(
+    tap((res) => this.upsertRental(res?.data))
+  );
+}
+>>>>>>> devVal
 }

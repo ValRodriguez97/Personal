@@ -19,9 +19,17 @@ interface HouseWithAvailability extends CountryHouseResponse {
   availabilityLoaded: boolean;
   entireHouseAvailable: boolean | null;
   checkingAvailability: boolean;
+<<<<<<< HEAD
+  packages: RentalPackageInfo[] | undefined;
+  loadingPackages: boolean;
+=======
+<<<<<<< Updated upstream
+=======
   hasReservationOverlap: boolean;
   packages: RentalPackageInfo[] | undefined;
   loadingPackages: boolean;
+>>>>>>> Stashed changes
+>>>>>>> devVal
 }
 
 @Component({
@@ -37,6 +45,14 @@ export class HouseGridComponent implements OnChanges, OnInit {
 
   enrichedHouses: HouseWithAvailability[] = [];
 
+<<<<<<< HEAD
+  private router               = inject(Router);
+  private countryHouseService  = inject(CountryHouseService);
+=======
+<<<<<<< Updated upstream
+  private router          = inject(Router);
+  private countryHouseService = inject(CountryHouseService);
+=======
   private router               = inject(Router);
   private countryHouseService  = inject(CountryHouseService);
   private rentalService        = inject(RentalService);
@@ -50,6 +66,8 @@ export class HouseGridComponent implements OnChanges, OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.refreshReservationOverlaps());
   }
+>>>>>>> Stashed changes
+>>>>>>> devVal
 
   get empty(): boolean {
     return !this.loading && this.enrichedHouses.length === 0;
@@ -61,11 +79,24 @@ export class HouseGridComponent implements OnChanges, OnInit {
         ...h,
         availabilityLoaded: false,
         entireHouseAvailable: null,
+<<<<<<< HEAD
+        checkingAvailability: false,
+        packages: undefined,
+        loadingPackages: true
+      }));
+=======
+<<<<<<< Updated upstream
+        checkingAvailability: false
+      }));
+      if (this.searchParams.fecha && this.searchParams.noches > 0) {
+        this.enrichedHouses.forEach(h => this.loadAvailability(h));
+=======
         checkingAvailability: false,
         hasReservationOverlap: false,
         packages: undefined,
         loadingPackages: true
       }));
+>>>>>>> devVal
 
       // Cargar paquetes y disponibilidad para cada casa
       this.enrichedHouses.forEach(h => {
@@ -74,12 +105,30 @@ export class HouseGridComponent implements OnChanges, OnInit {
           this.loadAvailability(h);
         }
       });
+<<<<<<< HEAD
+=======
 
       this.refreshReservationOverlaps();
     }
 
     if (changes['searchParams'] && !changes['houses']) {
       this.refreshReservationOverlaps();
+    }
+  }
+
+  loadPackages(house: HouseWithAvailability): void {
+    house.loadingPackages = true;
+    this.countryHouseService.getPackagesByHouse(house.id).subscribe({
+      next: (res) => {
+        house.packages = res?.data ?? [];
+        house.loadingPackages = false;
+      },
+      error: () => {
+        house.packages = [];
+        house.loadingPackages = false;
+>>>>>>> Stashed changes
+      }
+>>>>>>> devVal
     }
   }
 
