@@ -1,252 +1,240 @@
-import { CommonModule, DecimalPipe } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
-import { ToastrService } from 'ngx-toastr';
-import { AuthService } from '../../Services/Auth/Auth.service';
-import { BankAccountService, BankAccountData } from '../../Services/BankAccount/BankAccount.service';
-import { RentalResponse, RentalService } from '../../Services/Rental/rental.service';
-import { NavbarComponent } from '../homepage/components/navbar/navbar.component';
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Observable } from 'rxjs';
+import { BehaviorSubject, map, tap } from 'rxjs';
 
-interface RentalVM extends RentalResponse {
-  uiCheckIn:  string;
-  uiCheckOut: string;
-  uiDayMade:  string;
-  uiBadge?: { label: string; icon: string; class: string };
-  uiCanPay:    boolean;
-  uiCanCancel: boolean;
+export interface RentalRequest {
+  countryHouseCode: string;
+  checkInDate: string;       // YYYY-MM-DD
+  numberNights: number;
+  contactPhoneNumber: string;
+  bedroomCodes?: string[];
+  typeRental: 'ENTIRE_HOUSE' | 'ROOMS';
 }
 
-@Component({
-  selector: 'app-my-rentals',
-  standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, NavbarComponent],
-  templateUrl: './my-rentals.component.html',
-  styleUrls: ['./my-rentals.component.css']
-})
-export class MyRentalsComponent implements OnInit {
-  private auth       = inject(AuthService);
-  private rentalSvc  = inject(RentalService);
-  private bankSvc    = inject(BankAccountService);
-  private toastr     = inject(ToastrService);
-  private router     = inject(Router);
+/** Body que espera el backend en POST /api/rentals/{rentalId}/pay */
+export interface PayRentalRequest {
+  customerBankAccountId: string;
+  ownerBankAccountId: string;
+  amount: number;
+}
 
-  activeTab: 'list' | 'search' = 'list';
-  isLoading   = true;
-  isSearching = false;
+export interface RentalResponse {
+  id: string;
+  rentalCode: string;
+  rentalDayMade: string;
+  checkInDate: string;
+  checkOutDate: string;
+  numberNights: number;
+  state: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'PAID';
+  contactPhoneNumber: string;
+  totalPrice: number;
+  totalPaid?: number;
+  remainingBalance?: number;
+  depositRequired?: number;
+  rentalPlaceId: string[];
+  countryHouseCode: string;
+  customerUserName: string | null;
+  ownerBankAccount?: string | string[];
+  ownerId?: string;
+}
 
-  rentals:      RentalVM[] = [];
-  searchCode    = '';
-  searchResult: RentalVM | null = null;
-  searchError   = '';
+export interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+}
 
-  // Cancel modal
-  cancelTarget: RentalVM | null = null;
-  isCancelling  = false;
+@Injectable({ providedIn: 'root' })
+export class RentalService {
+  private readonly base = 'http://localhost:8081/api/rentals';
+  private readonly rentalsCache$ = new BehaviorSubject<Record<string, RentalResponse>>({});
 
-  // Pay modal
-  payTarget:       RentalVM | null = null;
-  depositAmount    = 0;
-  paymentStep: 'select_account' | 'confirm' | 'processing' | 'success' = 'select_account';
-  isPaying         = false;
-  isLoadingAccounts = false;
-  customerAccounts: BankAccountData[] = [];
-  selectedAccountId = '';
+  constructor(private http: HttpClient) {}
 
-  get selectedAccount(): BankAccountData | undefined {
-    return this.customerAccounts.find(a => a.id === this.selectedAccountId);
+  private headers(): HttpHeaders {
+    const raw = sessionStorage.getItem('rhouses_user');
+    let token = '';
+    try { token = raw ? (JSON.parse(raw)?.token ?? '') : ''; } catch { token = ''; }
+    return token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : new HttpHeaders();
   }
 
-  get hasSufficientFunds(): boolean {
-    return (this.selectedAccount?.mount ?? 0) >= this.depositAmount;
+  // ── CRUD ──────────────────────────────────────────────────────────────────
+
+  /** Crear reserva */
+  makeRental(customerId: string | null, body: RentalRequest): Observable<ApiResponse<RentalResponse>> {
+    const params = customerId ? `?customerId=${customerId}` : '';
+    return this.http.post<ApiResponse<RentalResponse>>(
+      `${this.base}${params}`, body, { headers: this.headers() }
+    ).pipe(tap((res) => this.upsertRental(res?.data)));
   }
 
-  get pendingCount():   number { return this.rentals.filter(r => r.state === 'PENDING').length; }
-  get confirmedCount(): number { return this.rentals.filter(r => r.state === 'CONFIRMED').length; }
-
-  ngOnInit(): void {
-    const user = this.auth.user();
-    if (!user || this.auth.isOwner()) {
-      this.router.navigate(['/']);
-      return;
-    }
-    this.loadRentals(user.id);
+  /** Consultar por código */
+  findByCode(rentalCode: string): Observable<ApiResponse<RentalResponse>> {
+    return this.http.get<ApiResponse<RentalResponse>>(`${this.base}/${rentalCode}`);
   }
 
-  loadRentals(customerId: string): void {
-    this.isLoading = true;
-    this.rentalSvc.findByCustomer(customerId).subscribe({
-      next: (res) => {
-        const raw = res?.data ?? [];
-        this.rentals = raw
-          .map(r => this.toVM(r))
-          .sort((a, b) => b.rentalDayMade.localeCompare(a.rentalDayMade));
-        this.isLoading = false;
-      },
-      error: () => {
-        this.toastr.error('No se pudieron cargar tus reservas', 'Error');
-        this.isLoading = false;
-      }
-    });
+  /** Listar reservas del cliente */
+  findByCustomer(customerId: string): Observable<ApiResponse<RentalResponse[]>> {
+    return this.http.get<ApiResponse<RentalResponse[]>>(
+      `${this.base}/customer/${customerId}`, { headers: this.headers() }
+    ).pipe(tap((res) => this.hydrateRentals(res?.data ?? [])));
   }
 
-  searchByCode(): void {
-    if (!this.searchCode.trim()) return;
-    this.isSearching  = true;
-    this.searchResult = null;
-    this.searchError  = '';
-
-    this.rentalSvc.findByCode(this.searchCode.trim()).subscribe({
-      next: (res) => {
-        this.searchResult = res?.data ? this.toVM(res.data) : null;
-        if (!this.searchResult) this.searchError = 'No se encontró ninguna reserva con ese código.';
-        this.isSearching = false;
-      },
-      error: () => {
-        this.searchError  = 'No se encontró ninguna reserva con ese código.';
-        this.isSearching  = false;
-      }
-    });
+  /** Listar reservas de una casa concreta (propietario) */
+  findByOwner(houseId: string): Observable<ApiResponse<RentalResponse[]>> {
+    return this.http.get<ApiResponse<RentalResponse[]>>(
+      `${this.base}/house/${houseId}`, { headers: this.headers() }
+    ).pipe(tap((res) => this.hydrateRentals(res?.data ?? [])));
   }
 
-  // ── Cancel modal ──────────────────────────────────────────────────────────
+  /**
+   * Reservas con plazo vencido (+3 días sin pago) de un propietario.
+   * Endpoint: GET /api/rentals/expired?ownerId={id}
+   */
+  getExpiredRentals(ownerId: string): Observable<ApiResponse<RentalResponse[]>> {
+    return this.http.get<ApiResponse<RentalResponse[]>>(
+      `${this.base}/expired?ownerId=${ownerId}`, { headers: this.headers() }
+    ).pipe(tap((res) => this.hydrateRentals(res?.data ?? [])));
+  }
 
-  openCancelModal(rental: RentalVM): void  { this.cancelTarget = rental; }
-  closeCancelModal(): void { this.cancelTarget = null; }
+  // ── Acciones del propietario ──────────────────────────────────────────────
 
-  confirmCancel(): void {
-    if (!this.cancelTarget) return;
-    const customerId = this.auth.user()?.id;
-    if (!customerId) return;
-
-    const rental = this.cancelTarget;
-    this.isCancelling  = true;
-    this.cancelTarget  = null;
-
-    
-    this.rentalSvc.updateRentalStateLocal(rental.id, 'CANCELLED');
-    this.rentals = this.rentals.map(r =>
-      r.id === rental.id ? this.toVM({ ...r, state: 'CANCELLED' }) : r
+  /**
+   * El propietario registra el cobro del anticipo.
+   * Endpoint: POST /api/rentals/{rentalId}/payment?ownerId={id}&amount={importe}
+   * Cambia el estado a CONFIRMED cuando el pago cubre el anticipo mínimo (20 %).
+   */
+  registerPaymentAsOwner(rentalId: string, amount: number, ownerId: string): Observable<ApiResponse<void>> {
+    return this.http.post<ApiResponse<void>>(
+      `${this.base}/${rentalId}/payment?ownerId=${ownerId}&amount=${amount}`,
+      {},
+      { headers: this.headers() }
+    ).pipe(
+      tap(() => {
+        const rental = this.rentalsCache$.value[rentalId];
+        if (rental) this.upsertRental({ ...rental, state: 'CONFIRMED' });
+      })
     );
-    this.toastr.info(
-      `Reserva ${rental.rentalCode} marcada como cancelada. Contacta con el propietario para confirmar.`,
-      'Cancelación solicitada'
+  }
+
+  /**
+   * El propietario cancela una reserva.
+   * Endpoint: POST /api/rentals/{rentalId}/cancel?ownerId={id}
+   */
+  cancelAsOwner(rentalId: string, ownerId: string): Observable<ApiResponse<void>> {
+    return this.http.post<ApiResponse<void>>(
+      `${this.base}/${rentalId}/cancel?ownerId=${ownerId}`,
+      {},
+      { headers: this.headers() }
+    ).pipe(
+      tap(() => {
+        const rental = this.rentalsCache$.value[rentalId];
+        if (rental) this.upsertRental({ ...rental, state: 'CANCELLED' });
+      })
     );
-    this.isCancelling = false;
   }
 
-  // ── Pay modal ─────────────────────────────────────────────────────────────
+  // ── Acciones del cliente ──────────────────────────────────────────────────
 
-  openPayModal(rental: RentalVM): void {
-    this.payTarget       = rental;
-    this.depositAmount   = parseFloat((rental.totalPrice * 0.2).toFixed(2));
-    this.paymentStep     = 'select_account';
-    this.selectedAccountId = '';
-    this.loadCustomerAccounts();
-  }
-
-  closePayModal(): void {
-    if (this.isPaying) return;
-    this.payTarget = null;
-    this.customerAccounts = [];
-    this.selectedAccountId = '';
-  }
-
-  loadCustomerAccounts(): void {
-    const userId = this.auth.user()?.id;
-    if (!userId) return;
-    this.isLoadingAccounts = true;
-    this.bankSvc.getByUser(userId).subscribe({
-      next: (res) => {
-        this.customerAccounts = (res?.data ?? []).map((a: any) => ({
-          id:            a.id,
-          numberAccount: a.numberAccount ?? '',
-          bank:          a.bank ?? a.bankName ?? 'Sin banco',
-          accountType:   a.accountType ?? '',
-          mount:         a.mount ?? 0
-        }));
-        // Auto-select first account with sufficient funds
-        const suitable = this.customerAccounts.find(a => a.mount >= this.depositAmount);
-        if (suitable) this.selectedAccountId = suitable.id;
-        this.isLoadingAccounts = false;
-      },
-      error: () => {
-        this.toastr.error('No se pudieron cargar tus cuentas bancarias', 'Error');
-        this.isLoadingAccounts = false;
-      }
-    });
-  }
-
-  proceedToConfirm(): void {
-    if (!this.selectedAccountId || !this.hasSufficientFunds) return;
-    this.paymentStep = 'confirm';
-  }
-
-  confirmPayment(): void {
-    if (!this.payTarget) return;
-    const customerId = this.auth.user()?.id;
-    if (!customerId) return;
-
-    this.paymentStep = 'processing';
-    this.isPaying    = true;
-
-    this.rentalSvc.payDeposit(this.payTarget.id, customerId, this.depositAmount).subscribe({
-      next: () => {
-        this.paymentStep = 'success';
-        this.isPaying    = false;
-        // Refresh the rental in the list
-        this.rentals = this.rentals.map(r =>
-          r.id === this.payTarget?.id ? this.toVM({ ...r, state: 'CONFIRMED' }) : r
-        );
-        if (this.searchResult?.id === this.payTarget?.id) {
-          this.searchResult = this.toVM({ ...this.searchResult, state: 'CONFIRMED' });
+  /**
+   * El cliente paga transfiriendo desde su cuenta bancaria a la del propietario.
+   * Endpoint: POST /api/rentals/{rentalId}/pay?customerId={id}&amount={importe}
+   *
+   * El backend requiere en el BODY:
+   *   { customerBankAccountId, ownerBankAccountId, amount }
+   *
+   * Si el pago cubre el anticipo (20 %), el estado pasa a CONFIRMED.
+   * Si cubre el total, pasa a PAID.
+   */
+  payDeposit(
+    rentalId: string,
+    customerId: string,
+    payload: PayRentalRequest
+  ): Observable<ApiResponse<void>> {
+    return this.http.post<ApiResponse<void>>(
+      `${this.base}/${rentalId}/pay?customerId=${customerId}`,
+      payload,
+      { headers: this.headers() }
+    ).pipe(
+      tap(() => {
+        const rental = this.rentalsCache$.value[rentalId];
+        if (rental) {
+          // Optimistic update: si el pago es >= 20 % marcamos CONFIRMED
+          this.upsertRental({ ...rental, state: 'CONFIRMED' });
         }
-      },
-      error: (err) => {
-        this.toastr.error(err?.error?.message ?? 'Error al procesar el pago', 'Error');
-        this.paymentStep = 'select_account';
-        this.isPaying    = false;
-      }
+      })
+    );
+  }
+
+  // ── Observadores reactivos ────────────────────────────────────────────────
+
+  observeRentals(): Observable<RentalResponse[]> {
+    return this.rentalsCache$.asObservable().pipe(
+      map((cache) => Object.values(cache))
+    );
+  }
+
+  observeActiveRentalsByHouse(houseCode: string): Observable<RentalResponse[]> {
+    return this.observeRentals().pipe(
+      map((rentals) =>
+        rentals.filter((r) =>
+          r.countryHouseCode === houseCode &&
+          (r.state === 'PENDING' || r.state === 'CONFIRMED')
+        )
+      )
+    );
+  }
+
+  observeRentalById(rentalId: string): Observable<RentalResponse | undefined> {
+    return this.rentalsCache$.asObservable().pipe(
+      map((cache) => cache[rentalId])
+    );
+  }
+
+  updateRentalStateLocal(rentalId: string, state: RentalResponse['state']): void {
+    const current = this.rentalsCache$.value[rentalId];
+    if (!current) return;
+    this.upsertRental({ ...current, state });
+  }
+
+  hasActiveOverlap(houseCode: string, checkIn: string, nights: number): boolean {
+    if (!houseCode || !checkIn || nights <= 0) return false;
+    const cache = this.rentalsCache$.value;
+    const rentals = Object.values(cache).filter((r) =>
+      r.countryHouseCode === houseCode &&
+      (r.state === 'PENDING' || r.state === 'CONFIRMED')
+    );
+    const searchStart = this.parseDate(checkIn);
+    const searchEnd = new Date(searchStart);
+    searchEnd.setDate(searchEnd.getDate() + nights);
+    return rentals.some((r) => {
+      const rentalStart = this.parseDate(r.checkInDate);
+      const rentalEnd = this.parseDate(r.checkOutDate);
+      return searchStart < rentalEnd && searchEnd > rentalStart;
     });
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Helpers del caché ─────────────────────────────────────────────────────
 
-  formatBalance(amount: number): string {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency', currency: 'COP', maximumFractionDigits: 0
-    }).format(amount ?? 0);
+  private hydrateRentals(rentals: RentalResponse[]): void {
+    if (!rentals?.length) return;
+    const next = { ...this.rentalsCache$.value };
+    for (const rental of rentals) {
+      if (rental?.id) next[rental.id] = rental;
+    }
+    this.rentalsCache$.next(next);
   }
 
-  private toVM(r: RentalResponse): RentalVM {
-    const canAct = r.state === 'PENDING' || r.state === 'CONFIRMED';
-    return {
-      ...r,
-      uiCheckIn:  this.formatDate(r.checkInDate),
-      uiCheckOut: this.formatDate(r.checkOutDate),
-      uiDayMade:  this.formatDate(r.rentalDayMade),
-      uiBadge:    this.getBadge(r.state),
-      uiCanPay:    r.state === 'PENDING',
-      uiCanCancel: r.state === 'PENDING'
-    };
+  upsertRental(rental: RentalResponse | undefined): void {
+    if (!rental?.id) return;
+    this.rentalsCache$.next({
+      ...this.rentalsCache$.value,
+      [rental.id]: rental
+    });
   }
 
-  private getBadge(state: RentalResponse['state']): RentalVM['uiBadge'] {
-    const map: Record<string, RentalVM['uiBadge']> = {
-      PENDING:   { label: 'Pendiente de pago', icon: '⏳', class: 'bg-yellow-50 text-yellow-800 border-yellow-200' },
-      CONFIRMED: { label: 'Confirmada',         icon: '✅', class: 'bg-green-50 text-green-800 border-green-200' },
-      CANCELLED: { label: 'Cancelada',          icon: '❌', class: 'bg-red-50 text-red-700 border-red-200' },
-      EXPIRED:   { label: 'Vencida',            icon: '💤', class: 'bg-gray-50 text-gray-500 border-gray-200' }
-    };
-    return map[state];
-  }
-
-  private formatDate(d: string): string {
-    if (!d) return '';
-    try {
-      return new Date(d.split('T')[0] + 'T00:00:00').toLocaleDateString('es-CO', {
-        day: '2-digit', month: 'short', year: 'numeric'
-      });
-    } catch { return d; }
+  private parseDate(dateValue: string): Date {
+    return new Date(dateValue.split('T')[0] + 'T00:00:00');
   }
 }
