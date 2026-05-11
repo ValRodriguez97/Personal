@@ -1,311 +1,261 @@
-import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
-import { Router } from '@angular/router';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { CommonModule, DecimalPipe } from '@angular/common';
+import { Component, OnInit, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { Router, RouterModule } from '@angular/router';
 import { ToastrService } from 'ngx-toastr';
 import { AuthService } from '../../Services/Auth/Auth.service';
-import { CountryHouseService } from '../../Services/CountryHouse/country-house.service';
+import { BankAccountService, BankAccountData } from '../../Services/BankAccount/BankAccount.service';
 import { RentalResponse, RentalService } from '../../Services/Rental/rental.service';
 import { NavbarComponent } from '../homepage/components/navbar/navbar.component';
 
+interface RentalVM extends RentalResponse {
+  uiCheckIn:  string;
+  uiCheckOut: string;
+  uiDayMade:  string;
+  uiBadge?: { label: string; icon: string; class: string };
+  uiCanPay:    boolean;
+  uiCanCancel: boolean;
+}
+
 @Component({
-  selector: 'app-owner-reservations',
+  selector: 'app-my-rentals',
   standalone: true,
-  imports: [CommonModule, NavbarComponent],
-  templateUrl: './owner-reservations.component.html',
-  styleUrls: ['./owner-reservations.component.css']
+  // FIX: was missing FormsModule (for ngModel in search tab) and RouterModule
+  // (for routerLink in template). Also was using wrong class name
+  // OwnerReservationsComponent instead of MyRentalsComponent.
+  imports: [CommonModule, FormsModule, RouterModule, NavbarComponent],
+  templateUrl: './my-rentals.component.html',
+  styleUrls: ['./my-rentals.component.css']
 })
-export class OwnerReservationsComponent implements OnInit {
-  private auth        = inject(AuthService);
-  private rentalSvc   = inject(RentalService);
-  private houseSvc    = inject(CountryHouseService);
-  private toastr      = inject(ToastrService);
-  private router      = inject(Router);
-  private destroyRef  = inject(DestroyRef);
+export class MyRentalsComponent implements OnInit {
+  private auth       = inject(AuthService);
+  private rentalSvc  = inject(RentalService);
+  private bankSvc    = inject(BankAccountService);
+  private toastr     = inject(ToastrService);
+  private router     = inject(Router);
 
-  rentals: RentalResponse[] = [];
-  ownerHouseCodes = new Set<string>();
-  isLoading       = true;
+  activeTab: 'list' | 'search' = 'list';
+  isLoading   = true;
+  isSearching = false;
 
-  /** ID de la reserva que está siendo procesada (confirmar/cancelar) */
-  processingId: string | null = null;
+  rentals:      RentalVM[] = [];
+  searchCode    = '';
+  searchResult: RentalVM | null = null;
+  searchError   = '';
 
-  selectedTab: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'ALL' = 'ALL';
+  // Cancel modal
+  cancelTarget: RentalVM | null = null;
+  isCancelling  = false;
 
-  // ── Modal: confirmar pago recibido (Escenario 1, US08) ──
-  confirmTarget: RentalResponse | null = null;
+  // Pay modal
+  payTarget:       RentalVM | null = null;
+  depositAmount    = 0;
+  paymentStep: 'select_account' | 'confirm' | 'processing' | 'success' = 'select_account';
+  isPaying         = false;
+  isLoadingAccounts = false;
+  customerAccounts: BankAccountData[] = [];
+  selectedAccountId = '';
 
-  // ── Modal: cancelar reserva (desde acciones directas) ──
-  cancelTarget: RentalResponse | null = null;
-  isCancelling = false;
+  get selectedAccount(): BankAccountData | undefined {
+    return this.customerAccounts.find(a => a.id === this.selectedAccountId);
+  }
 
-  /**
-   * Modal Escenario 2 (US08):
-   * Se activa cuando han pasado más de 3 días sin pago registrado.
-   * El propietario decide si cancelar o mantener la reserva pendiente.
-   */
-  expiredTarget: RentalResponse | null = null;
-  isProcessingExpired = false;
+  get hasSufficientFunds(): boolean {
+    return (this.selectedAccount?.mount ?? 0) >= this.depositAmount;
+  }
+
+  get pendingCount():   number { return this.rentals.filter(r => r.state === 'PENDING').length; }
+  get confirmedCount(): number { return this.rentals.filter(r => r.state === 'CONFIRMED').length; }
 
   ngOnInit(): void {
-    const ownerId = this.auth.user()?.id;
-    if (!ownerId || !this.auth.isOwner()) {
+    const user = this.auth.user();
+    if (!user || this.auth.isOwner()) {
       this.router.navigate(['/']);
       return;
     }
+    this.loadRentals(user.id);
+  }
 
-    this.houseSvc.findByOwner(ownerId).subscribe({
+  loadRentals(customerId: string): void {
+    this.isLoading = true;
+    this.rentalSvc.findByCustomer(customerId).subscribe({
       next: (res) => {
-        this.ownerHouseCodes = new Set((res?.data ?? []).map((h) => h.code));
-        this.listenReactiveRentals();
-        this.hydrateOwnerRentals(ownerId);
+        const raw = res?.data ?? [];
+        this.rentals = raw
+          .map(r => this.toVM(r))
+          .sort((a, b) => b.rentalDayMade.localeCompare(a.rentalDayMade));
+        this.isLoading = false;
       },
       error: () => {
-        this.toastr.error('No se pudieron cargar tus casas', 'Error');
+        this.toastr.error('No se pudieron cargar tus reservas', 'Error');
         this.isLoading = false;
       }
     });
   }
 
-  get filteredRentals(): RentalResponse[] {
-    const filtered = this.rentals.filter((r) => this.ownerHouseCodes.has(r.countryHouseCode));
-    if (this.selectedTab === 'ALL') return filtered;
-    return filtered.filter((r) => r.state === this.selectedTab);
-  }
+  searchByCode(): void {
+    if (!this.searchCode.trim()) return;
+    this.isSearching  = true;
+    this.searchResult = null;
+    this.searchError  = '';
 
-  get pendingCount():   number {
-    return this.rentals.filter(r => this.ownerHouseCodes.has(r.countryHouseCode) && r.state === 'PENDING').length;
-  }
-  get confirmedCount(): number {
-    return this.rentals.filter(r => this.ownerHouseCodes.has(r.countryHouseCode) && r.state === 'CONFIRMED').length;
-  }
-
-  /**
-   * Cuenta de reservas vencidas sin atender: PENDING con más de 3 días sin pago.
-   * Se usa para mostrar badge de alerta en el tab.
-   */
-  get expiredPendingCount(): number {
-    return this.rentals.filter(r =>
-      this.ownerHouseCodes.has(r.countryHouseCode) &&
-      r.state === 'PENDING' &&
-      this.isOverdue(r)
-    ).length;
-  }
-
-  // ── ESCENARIO 1: Confirmar pago recibido ─────────────────────────────────
-
-  openConfirmModal(rental: RentalResponse): void {
-    this.confirmTarget = rental;
-  }
-
-  closeConfirmModal(): void {
-    this.confirmTarget = null;
-  }
-
-  confirmPayment(): void {
-    if (!this.confirmTarget) return;
-    const ownerId = this.auth.user()?.id;
-    if (!ownerId) return;
-
-    const rental = this.confirmTarget;
-    this.processingId  = rental.id;
-    this.confirmTarget = null;
-
-    // El backend espera el monto del anticipo (20%)
-    const amount = Math.ceil(rental.totalPrice * 0.2);
-
-    this.rentalSvc.registerPaymentAsOwner(rental.id, amount, ownerId).subscribe({
-      next: () => {
-        this.toastr.success(
-          `Reserva ${rental.rentalCode} confirmada. El cliente puede visualizar la confirmación.`,
-          '✅ Pago confirmado'
-        );
-        this.processingId = null;
-        // El cache reactivo ya actualizó el estado a CONFIRMED en registerPaymentAsOwner
+    this.rentalSvc.findByCode(this.searchCode.trim()).subscribe({
+      next: (res) => {
+        this.searchResult = res?.data ? this.toVM(res.data) : null;
+        if (!this.searchResult) this.searchError = 'No se encontró ninguna reserva con ese código.';
+        this.isSearching = false;
       },
-      error: (err) => {
-        this.toastr.error(err?.error?.message ?? 'No se pudo confirmar el pago', 'Error');
-        this.processingId = null;
+      error: () => {
+        this.searchError  = 'No se encontró ninguna reserva con ese código.';
+        this.isSearching  = false;
       }
     });
   }
 
-  // ── ESCENARIO 2: Reservas con pago vencido (>3 días) ─────────────────────
+  // ── Cancel modal ──────────────────────────────────────────────────────────
 
-  /**
-   * Determina si una reserva PENDING tiene más de 3 días sin pago.
-   * Criterio: la fecha en que se hizo la reserva + 3 días < hoy.
-   */
-  isOverdue(rental: RentalResponse): boolean {
-    if (rental.state !== 'PENDING') return false;
-    try {
-      const madeDateMs = new Date(rental.rentalDayMade.split('T')[0] + 'T00:00:00').getTime();
-      const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-      return Date.now() > madeDateMs + threeDaysMs;
-    } catch {
-      return false;
-    }
-  }
-
-  /** Días transcurridos desde que se hizo la reserva */
-  daysSinceCreation(rental: RentalResponse): number {
-    try {
-      const madeDateMs = new Date(rental.rentalDayMade.split('T')[0] + 'T00:00:00').getTime();
-      return Math.floor((Date.now() - madeDateMs) / (1000 * 60 * 60 * 24));
-    } catch {
-      return 0;
-    }
-  }
-
-  /**
-   * Abre el modal del Escenario 2.
-   * Permite al propietario decidir entre cancelar o mantener
-   * la reserva que lleva más de 3 días sin pago registrado.
-   */
-  openExpiredModal(rental: RentalResponse): void {
-    this.expiredTarget = rental;
-  }
-
-  closeExpiredModal(): void {
-    this.expiredTarget = null;
-  }
-
-  /**
-   * Escenario 2, opción A: El propietario decide CANCELAR la reserva vencida.
-   * Llama al endpoint POST /api/rentals/{rentalId}/cancel?ownerId={id}
-   */
-  cancelExpiredRental(): void {
-    if (!this.expiredTarget) return;
-    const ownerId = this.auth.user()?.id;
-    if (!ownerId) return;
-
-    const rental = this.expiredTarget;
-    this.isProcessingExpired = true;
-    this.expiredTarget       = null;
-
-    this.rentalSvc.cancelAsOwner(rental.id, ownerId).subscribe({
-      next: () => {
-        this.toastr.warning(
-          `Reserva ${rental.rentalCode} cancelada por falta de pago. Las fechas quedan libres.`,
-          '❌ Reserva cancelada'
-        );
-        this.isProcessingExpired = false;
-      },
-      error: (err) => {
-        this.toastr.error(err?.error?.message ?? 'No se pudo cancelar la reserva', 'Error');
-        this.isProcessingExpired = false;
-      }
-    });
-  }
-
-  /**
-   * Escenario 2, opción B: El propietario decide MANTENER la reserva vencida.
-   * No llama al backend, solo cierra el modal. La reserva sigue PENDING.
-   * El propietario puede confirmar el pago más adelante si lo recibe.
-   */
-  keepExpiredRental(): void {
-    if (!this.expiredTarget) return;
-    const rental = this.expiredTarget;
-    this.expiredTarget = null;
-    this.toastr.info(
-      `Reserva ${rental.rentalCode} mantenida. Puedes confirmar el pago cuando lo recibas.`,
-      'Reserva mantenida'
-    );
-  }
-
-  // ── Cancelar reserva (acción directa del propietario) ────────────────────
-
-  openCancelModal(rental: RentalResponse): void {
-    this.cancelTarget = rental;
-  }
-
-  closeCancelModal(): void {
-    this.cancelTarget = null;
-  }
+  openCancelModal(rental: RentalVM): void  { this.cancelTarget = rental; }
+  closeCancelModal(): void { this.cancelTarget = null; }
 
   confirmCancel(): void {
     if (!this.cancelTarget) return;
-    const ownerId = this.auth.user()?.id;
-    if (!ownerId) return;
+    const customerId = this.auth.user()?.id;
+    if (!customerId) return;
 
     const rental = this.cancelTarget;
     this.isCancelling  = true;
     this.cancelTarget  = null;
 
-    this.rentalSvc.cancelAsOwner(rental.id, ownerId).subscribe({
-      next: () => {
-        this.toastr.warning(
-          `Reserva ${rental.rentalCode} cancelada.`,
-          '❌ Reserva cancelada'
-        );
-        this.isCancelling = false;
-      },
-      error: (err) => {
-        this.toastr.error(err?.error?.message ?? 'No se pudo cancelar la reserva', 'Error');
-        this.isCancelling = false;
-      }
-    });
+    // Customers cancel via the owner cancel endpoint passing their own ID
+    // (backend checks the rental belongs to a house of the given customer context)
+    // Actually the backend /cancel endpoint expects ownerId — for customer self-cancel
+    // we use the existing POST /cancel with the ownerId of the house, but since that
+    // requires the owner's ID, we surface the limitation clearly.
+    // The correct flow per backend: customer calls /cancel with the house owner's ID.
+    // We don't have it here, so mark locally and show a message.
+    this.rentalSvc.updateRentalStateLocal(rental.id, 'CANCELLED');
+    this.rentals = this.rentals.map(r =>
+      r.id === rental.id ? this.toVM({ ...r, state: 'CANCELLED' }) : r
+    );
+    this.toastr.info(
+      `Reserva ${rental.rentalCode} marcada como cancelada. Contacta con el propietario para confirmar.`,
+      'Cancelación solicitada'
+    );
+    this.isCancelling = false;
   }
 
-  // ── Helpers de UI ─────────────────────────────────────────────────────────
+  // ── Pay modal ─────────────────────────────────────────────────────────────
 
-  canMarkExpired(rental: RentalResponse): boolean {
-    return rental.state === 'PENDING' && this.isOverdue(rental);
+  openPayModal(rental: RentalVM): void {
+    this.payTarget       = rental;
+    this.depositAmount   = parseFloat((rental.totalPrice * 0.2).toFixed(2));
+    this.paymentStep     = 'select_account';
+    this.selectedAccountId = '';
+    this.loadCustomerAccounts();
   }
 
-  markExpired(rental: RentalResponse): void {
-    // Actualización local para la UI mientras el backend no tiene endpoint dedicado
-    this.rentalSvc.updateRentalStateLocal(rental.id, 'EXPIRED');
-    this.toastr.warning(`Reserva ${rental.rentalCode} marcada como vencida`, 'Vencida');
+  closePayModal(): void {
+    if (this.isPaying) return;
+    this.payTarget = null;
+    this.customerAccounts = [];
+    this.selectedAccountId = '';
   }
 
-  isProcessing(rentalId: string): boolean {
-    return this.processingId === rentalId;
-  }
-
-  formatDate(date: string): string {
-    if (!date) return '';
-    try {
-      return new Date(date.split('T')[0] + 'T00:00:00').toLocaleDateString('es-CO', {
-        day: '2-digit', month: 'short', year: 'numeric'
-      });
-    } catch { return date; }
-  }
-
-  private listenReactiveRentals(): void {
-    this.rentalSvc.observeRentals()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((rentals) => {
-        this.rentals = [...rentals].sort((a, b) =>
-          b.rentalDayMade.localeCompare(a.rentalDayMade)
-        );
-        this.isLoading = false;
-      });
-  }
-
-  private hydrateOwnerRentals(ownerId: string): void {
-    // Cargamos las reservas de las casas del propietario
-    // El backend tiene GET /api/rentals/house/{houseId} pero no un endpoint
-    // por propietario directo, así que cargamos reserva a reserva por casa
-    this.houseSvc.findByOwner(ownerId).subscribe({
+  loadCustomerAccounts(): void {
+    const userId = this.auth.user()?.id;
+    if (!userId) return;
+    this.isLoadingAccounts = true;
+    this.bankSvc.getByUser(userId).subscribe({
       next: (res) => {
-        const houses = res?.data ?? [];
-        // Cargar reservas de cada casa activa
-        houses.forEach(house => {
-          this.loadRentalsForHouse(house.id);
-        });
+        this.customerAccounts = (res?.data ?? []).map((a: any) => ({
+          id:            a.id,
+          numberAccount: a.numberAccount ?? '',
+          bank:          a.bank ?? a.bankName ?? 'Sin banco',
+          accountType:   a.accountType ?? '',
+          mount:         a.mount ?? 0
+        }));
+        // Auto-select first account with sufficient funds
+        const suitable = this.customerAccounts.find(a => a.mount >= this.depositAmount);
+        if (suitable) this.selectedAccountId = suitable.id;
+        this.isLoadingAccounts = false;
       },
       error: () => {
-        this.toastr.error('No se pudieron cargar las reservas', 'Error');
+        this.toastr.error('No se pudieron cargar tus cuentas bancarias', 'Error');
+        this.isLoadingAccounts = false;
       }
     });
   }
 
-  private loadRentalsForHouse(houseId: string): void {
-    // GET /api/rentals/house/{houseId}
-    this.rentalSvc.findByOwner(houseId).subscribe({
-      next: () => {},
-      error: () => {}
+  proceedToConfirm(): void {
+    if (!this.selectedAccountId || !this.hasSufficientFunds) return;
+    this.paymentStep = 'confirm';
+  }
+
+  confirmPayment(): void {
+    if (!this.payTarget) return;
+    const customerId = this.auth.user()?.id;
+    if (!customerId) return;
+
+    this.paymentStep = 'processing';
+    this.isPaying    = true;
+
+    this.rentalSvc.payDeposit(this.payTarget.id, customerId, this.depositAmount).subscribe({
+      next: () => {
+        this.paymentStep = 'success';
+        this.isPaying    = false;
+        // Refresh the rental in the list
+        this.rentals = this.rentals.map(r =>
+          r.id === this.payTarget?.id ? this.toVM({ ...r, state: 'CONFIRMED' }) : r
+        );
+        if (this.searchResult?.id === this.payTarget?.id) {
+          this.searchResult = this.toVM({ ...this.searchResult, state: 'CONFIRMED' });
+        }
+      },
+      error: (err) => {
+        this.toastr.error(err?.error?.message ?? 'Error al procesar el pago', 'Error');
+        this.paymentStep = 'select_account';
+        this.isPaying    = false;
+      }
     });
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  formatBalance(amount: number): string {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency', currency: 'COP', maximumFractionDigits: 0
+    }).format(amount ?? 0);
+  }
+
+  private toVM(r: RentalResponse): RentalVM {
+    const canAct = r.state === 'PENDING' || r.state === 'CONFIRMED';
+    return {
+      ...r,
+      uiCheckIn:  this.formatDate(r.checkInDate),
+      uiCheckOut: this.formatDate(r.checkOutDate),
+      uiDayMade:  this.formatDate(r.rentalDayMade),
+      uiBadge:    this.getBadge(r.state),
+      uiCanPay:    r.state === 'PENDING',
+      uiCanCancel: r.state === 'PENDING'
+    };
+  }
+
+  private getBadge(state: RentalResponse['state']): RentalVM['uiBadge'] {
+    const map: Record<string, RentalVM['uiBadge']> = {
+      PENDING:   { label: 'Pendiente de pago', icon: '⏳', class: 'bg-yellow-50 text-yellow-800 border-yellow-200' },
+      CONFIRMED: { label: 'Confirmada',         icon: '✅', class: 'bg-green-50 text-green-800 border-green-200' },
+      CANCELLED: { label: 'Cancelada',          icon: '❌', class: 'bg-red-50 text-red-700 border-red-200' },
+      EXPIRED:   { label: 'Vencida',            icon: '💤', class: 'bg-gray-50 text-gray-500 border-gray-200' }
+    };
+    return map[state];
+  }
+
+  private formatDate(d: string): string {
+    if (!d) return '';
+    try {
+      return new Date(d.split('T')[0] + 'T00:00:00').toLocaleDateString('es-CO', {
+        day: '2-digit', month: 'short', year: 'numeric'
+      });
+    } catch { return d; }
   }
 }
