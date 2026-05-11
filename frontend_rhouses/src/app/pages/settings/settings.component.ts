@@ -57,7 +57,6 @@ export class SettingsComponent implements OnInit {
   isSavingProfile   = false;
   editingAccountId: string | null = null;
 
-  // Only email, phone, and optional password fields
   profileForm = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
     phone: ['', [Validators.required, Validators.pattern(/^\+?[0-9]{7,15}$/)]],
@@ -144,8 +143,6 @@ export class SettingsComponent implements OnInit {
 
     const values = this.profileForm.getRawValue();
 
-    // Guard: if a new password was entered but confirmation doesn't match, the
-    // group validator already catches it — but double-check here for safety.
     if (values.password && values.password !== values.confirmPassword) {
       this.toastr.warning('Las contraseñas no coinciden', 'Error de validación');
       return;
@@ -156,15 +153,8 @@ export class SettingsComponent implements OnInit {
     const isOwner    = this.authService.isOwner();
     const headers    = this.getAuthHeaders();
     const newPassword = values.password?.trim();
-
-    // FIX: The old code sent `payload.password = user.userName` as a fallback
-    // when no new password was entered. This would overwrite the hashed password
-    // in the DB with the plaintext username, breaking future logins.
-    // Now we use separate PATCH-style endpoints for each field instead of a
-    // monolithic PUT, matching the actual backend API surface.
     const requests: Promise<void>[] = [];
 
-    // Update email if changed
     if (values.email && values.email !== user.email) {
       const emailUrl = isOwner
         ? `${this.base}/api/owners/${user.id}/email`
@@ -174,7 +164,6 @@ export class SettingsComponent implements OnInit {
       );
     }
 
-    // Update phone if changed
     if (values.phone && values.phone !== user.phone) {
       const phoneUrl = isOwner
         ? `${this.base}/api/owners/${user.id}/phone`
@@ -184,10 +173,8 @@ export class SettingsComponent implements OnInit {
       );
     }
 
-    // Update password/accessWord only if explicitly provided
     if (newPassword) {
       if (isOwner) {
-        // Owners use /access-word endpoint
         const accessWordUrl = `${this.base}/api/owners/${user.id}/access-word`;
         requests.push(
           this.http.put(accessWordUrl, { accessWord: newPassword }, { headers }).toPromise().then(() => {})

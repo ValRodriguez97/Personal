@@ -50,10 +50,7 @@ export class OwnerReservationsComponent implements OnInit {
         const houses = res?.data ?? [];
         this.ownerHouseCodes = new Set(houses.map((h) => h.code));
         this.listenReactiveRentals();
-        // FIX: hydrateOwnerRentals was previously called with ownerId directly
-        // and passing it to findByOwner(houseId) — semantically wrong since
-        // findByOwner hits /api/rentals/house/{houseId}.
-        // We now iterate actual house IDs from the owner's house list.
+        
         this.hydrateOwnerRentals(houses.map(h => h.id));
       },
       error: () => {
@@ -240,9 +237,7 @@ export class OwnerReservationsComponent implements OnInit {
       });
   }
 
-  // FIX: was previously calling findByOwner(ownerId) — but that method hits
-  // GET /api/rentals/house/{houseId}, so passing ownerId returns an empty list.
-  // We now receive the actual list of house IDs and load each house's rentals.
+
   private hydrateOwnerRentals(houseIds: string[]): void {
     if (houseIds.length === 0) {
       this.isLoading = false;

@@ -20,9 +20,6 @@ interface RentalVM extends RentalResponse {
 @Component({
   selector: 'app-my-rentals',
   standalone: true,
-  // FIX: was missing FormsModule (for ngModel in search tab) and RouterModule
-  // (for routerLink in template). Also was using wrong class name
-  // OwnerReservationsComponent instead of MyRentalsComponent.
   imports: [CommonModule, FormsModule, RouterModule, NavbarComponent],
   templateUrl: './my-rentals.component.html',
   styleUrls: ['./my-rentals.component.css']
@@ -126,13 +123,7 @@ export class MyRentalsComponent implements OnInit {
     this.isCancelling  = true;
     this.cancelTarget  = null;
 
-    // Customers cancel via the owner cancel endpoint passing their own ID
-    // (backend checks the rental belongs to a house of the given customer context)
-    // Actually the backend /cancel endpoint expects ownerId — for customer self-cancel
-    // we use the existing POST /cancel with the ownerId of the house, but since that
-    // requires the owner's ID, we surface the limitation clearly.
-    // The correct flow per backend: customer calls /cancel with the house owner's ID.
-    // We don't have it here, so mark locally and show a message.
+    
     this.rentalSvc.updateRentalStateLocal(rental.id, 'CANCELLED');
     this.rentals = this.rentals.map(r =>
       r.id === rental.id ? this.toVM({ ...r, state: 'CANCELLED' }) : r

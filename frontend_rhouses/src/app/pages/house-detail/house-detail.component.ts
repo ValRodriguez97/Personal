@@ -107,7 +107,6 @@ export class HouseDetailComponent implements OnInit {
       return;
     }
 
-    // Listen reactively for real-time updates on this house's reservations
     this.rentalSvc.observeActiveRentalsByHouse(this.house.code)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((rentals) => {
@@ -117,12 +116,7 @@ export class HouseDetailComponent implements OnInit {
     const user = this.authService.user();
     if (!user) return;
 
-    // FIX: owners must hydrate via findByOwner (which hits /api/rentals/house/{ownerId}
-    // using their house IDs). Customers hydrate via findByCustomer.
-    // Previously this always called findByCustomer even for owners, so the
-    // calendar overlay was always empty when a propietario viewed their own house.
     if (this.authService.isOwner()) {
-      // Load rentals for THIS specific house by its houseId
       this.rentalSvc.findByOwner(this.houseId).subscribe({ next: () => {}, error: () => {} });
     } else {
       this.rentalSvc.findByCustomer(user.id).subscribe({ next: () => {}, error: () => {} });
