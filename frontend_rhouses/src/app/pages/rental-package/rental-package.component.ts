@@ -16,6 +16,7 @@ interface PackageForm {
   startingDate: string;
   endingDate:   string;
   priceNight:   number | null;
+  pricePerRoomNight: number | null;
   typeRental:   'ENTIRE_HOUSE' | 'ROOMS' | 'BOTH';
 }
 
@@ -57,6 +58,7 @@ export class RentalPackageComponent implements OnInit {
     startingDate: '',
     endingDate:   '',
     priceNight:   null,
+    pricePerRoomNight: null,
     typeRental:   'ENTIRE_HOUSE'
   };
 
@@ -134,7 +136,7 @@ export class RentalPackageComponent implements OnInit {
 
   openForm(): void {
     this.editingId = null;
-    this.form = { startingDate: '', endingDate: '', priceNight: null, typeRental: 'ENTIRE_HOUSE' };
+    this.form = { startingDate: '', endingDate: '', priceNight: null, pricePerRoomNight: null,  typeRental: 'ENTIRE_HOUSE' };
     this.showForm = true;
     setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50);
   }
@@ -145,6 +147,7 @@ export class RentalPackageComponent implements OnInit {
       startingDate: (pkg.startingDate ?? '').split('T')[0],
       endingDate:   (pkg.endingDate   ?? '').split('T')[0],
       priceNight:   pkg.priceNight,
+      pricePerRoomNight: pkg.pricePerRoomNight,
       typeRental:   pkg.typeRental as any
     };
     this.showForm = true;
@@ -175,14 +178,18 @@ export class RentalPackageComponent implements OnInit {
       startingDate: this.form.startingDate,
       endingDate:   this.form.endingDate,
       priceNight:   Number(this.form.priceNight),
+      pricePerRoomNight: Number(this.form.pricePerRoomNight),
       typeRental:   this.form.typeRental
     };
 
     if (this.editingId) {
       this.houseSvc.updateRentalPackage(this.ownerId!, this.editingId, payload).subscribe({
         next: (res) => {
-          const idx = this.packages.findIndex(p => p.id === this.editingId);
-          if (idx !== -1 && res?.data) this.packages[idx] = res.data;
+          if (res?.data) {
+            this.packages = this.packages.map(p => 
+              p.id === this.editingId ? res.data : p
+            );
+          }
           this.toastr.success('Paquete actualizado', '¡Éxito!');
           this.isSaving = false;
           this.cancelForm();

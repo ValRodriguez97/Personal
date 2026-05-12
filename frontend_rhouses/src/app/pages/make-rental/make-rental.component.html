@@ -230,6 +230,10 @@
                       ${{ pkg.priceNight }}
                     </p>
                     <p class="text-xs text-gray-400 font-medium">/noche</p>
+                    <p *ngIf="pkg.typeRental === 'ROOMS' || pkg.typeRental === 'BOTH'"
+                      class="text-xs text-gray-400 mt-0.5">
+                      ${{ pkg.pricePerRoomNight }}<span class="text-gray-300">/hab/noche</span>
+                    </p>
                   </div>
                 </div>
 

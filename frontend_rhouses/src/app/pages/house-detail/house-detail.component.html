@@ -437,16 +437,25 @@
           </div>
 
           <!-- Precio -->
-          <div>
-
+          <div *ngIf="pkgForm.typeRental === 'ENTIRE_HOUSE' || pkgForm.typeRental === 'BOTH'">
             <label class="block text-sm font-bold mb-1.5">
               Precio por noche ($) *
             </label>
-
             <input
               type="number"
               min="1"
               [(ngModel)]="pkgForm.priceNight"
+              class="w-full px-4 py-3 border border-gray-200 rounded-xl"/>
+          </div>
+
+          <div *ngIf="pkgForm.typeRental === 'ROOMS' || pkgForm.typeRental === 'BOTH'">
+            <label class="block text-sm font-bold mb-1.5">
+              Precio por habitación/noche ($) *
+            </label>
+            <input
+              type="number"
+              min="1"
+              [(ngModel)]="pkgForm.pricePerRoomNight"
               class="w-full px-4 py-3 border border-gray-200 rounded-xl"/>
           </div>
 

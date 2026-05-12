@@ -300,7 +300,13 @@ export class MakeRentalComponent implements OnInit {
 
     // Precio (mejora 3)
     if (this.selectedPackage && this.form.numberNights > 0 && !this.dateRangeError) {
-      this.calculatedPrice   = this.selectedPackage.priceNight * this.form.numberNights;
+      if (this.form.typeRental === 'ROOMS') {
+        this.calculatedPrice = this.selectedPackage.pricePerRoomNight * 
+                              this.form.selectedBedroomCodes.length * 
+                              this.form.numberNights;
+      } else {
+        this.calculatedPrice = this.selectedPackage.priceNight * this.form.numberNights;
+      }
       this.calculatedDeposit = this.calculatedPrice * 0.2;
     } else {
       this.calculatedPrice   = 0;

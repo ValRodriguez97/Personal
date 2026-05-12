@@ -217,36 +217,24 @@ export class MyRentalsComponent implements OnInit {
   private loadOwnerAccountsForRental(rental: RentalVM): void {
     this.isLoadingOwnerAccounts = true;
 
-    // Nivel 1: ownerId ya viene en la reserva
-    if (rental.ownerId) {
-      this.fetchOwnerAccounts(rental.ownerId);
-      return;
-    }
-
-    // Nivel 2: resolver ownerId a través de la casa
     this.houseSvc.findByCode(rental.countryHouseCode).pipe(
       switchMap((houseRes) => {
-        const house = houseRes?.data;
-        if (!house?.id) return of(null);
-        // Las reservas de la casa traen ownerId
-        return this.rentalSvc.findByOwner(house.id);
+        const ownerId = houseRes?.data?.ownerId;
+        if (!ownerId) return of(null);
+        return this.bankSvc.getByUser(ownerId);
       })
     ).subscribe({
-      next: (rentalListRes: any) => {
-        if (!rentalListRes) {
-          this.noOwnerAccountsFound();
-          return;
-        }
-        const list: RentalResponse[] = rentalListRes?.data ?? [];
-        const ownerId = list.find((r: RentalResponse) => r.ownerId)?.ownerId;
-        if (ownerId) {
-          this.fetchOwnerAccounts(ownerId);
-        } else {
-          this.noOwnerAccountsFound();
-        }
+
+      next: (res) => {
+        if (!res) { this.noOwnerAccountsFound(); return; }
+        this.ownerAccounts = res?.data ?? [];
+        this.isLoadingOwnerAccounts = false;
       },
-      error: () => this.noOwnerAccountsFound()
-    });
+
+      error: () => {
+        this.noOwnerAccountsFound();
+      }
+    })
   }
 
   private fetchOwnerAccounts(ownerId: string): void {

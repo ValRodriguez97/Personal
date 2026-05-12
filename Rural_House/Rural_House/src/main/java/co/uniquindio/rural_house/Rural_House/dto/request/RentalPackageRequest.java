@@ -21,4 +21,7 @@ public class RentalPackageRequest {
 
     @NotNull(message = "El tipo de alquiler es obligatorio")
     private TypeRental typeRental;
+
+    @Positive(message = "El precio por habitación por noche debe ser positivo")
+    private Float pricePerRoomNight;
 }

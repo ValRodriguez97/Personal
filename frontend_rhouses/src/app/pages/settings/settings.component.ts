@@ -67,7 +67,7 @@ export class SettingsComponent implements OnInit {
       Validators.pattern(/^[a-zA-Z0-9_.-]+$/)
     ]],
     email: ['', [Validators.required, Validators.email]],
-    phone: ['', [Validators.required, Validators.pattern(/^\+?[0-9]{7,15}$/)]],
+    phone: ['', [Validators.pattern(/^\+?[0-9]{7,15}$/)]],
     // Campo reutilizado: para propietario = accessWord (min 4), para cliente = password (min 8 + patrón)
     password: [''],
     confirmPassword: ['']

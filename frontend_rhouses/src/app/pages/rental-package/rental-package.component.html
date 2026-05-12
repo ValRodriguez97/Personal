@@ -122,17 +122,31 @@
           </div>
 
           <!-- Precio -->
-          <div>
+          <div *ngIf="form.typeRental === 'ENTIRE_HOUSE' || form.typeRental === 'BOTH'">
             <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">
               Precio por noche ($) *
             </label>
             <div class="relative">
               <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-sm">$</span>
               <input type="number" min="1" [(ngModel)]="form.priceNight" placeholder="0"
-                     class="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl outline-none text-sm
+                    class="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl outline-none text-sm
                             focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465] transition-all"/>
             </div>
           </div>
+
+          <div *ngIf="form.typeRental === 'ROOMS' || form.typeRental === 'BOTH'">
+            <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">
+              Precio por habitación/noche ($) *
+            </label>
+            <div class="relative">
+              <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-sm">$</span>
+              <input type="number" min="1" [(ngModel)]="form.pricePerRoomNight" placeholder="0"
+                    class="w-full pl-8 pr-4 py-3 border border-gray-200 rounded-xl outline-none text-sm
+                            focus:ring-2 focus:ring-[#AA4465]/20 focus:border-[#AA4465] transition-all"/>
+            </div>
+          </div>
+          
+
 
           <!-- Tipo de alquiler -->
           <div>
