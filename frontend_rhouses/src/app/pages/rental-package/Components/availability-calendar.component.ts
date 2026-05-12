@@ -140,7 +140,8 @@ export interface ReservationOverlay {
                   class="pkg-pill"
                   [style.background]="getPkgColor(pkg.typeRental)">
               <ng-container *ngIf="isStartDay(cell.date, pkg)">
-                $ {{ pkg.priceNight }} &middot; {{ getRentalLabel(pkg.typeRental) }}
+                $ {{ pkg.typeRental === 'ROOMS' ? pkg.pricePerRoomNight : pkg.priceNight }}
+                &middot; {{ getRentalLabel(pkg.typeRental) }}
               </ng-container>
               <ng-container *ngIf="!isStartDay(cell.date, pkg)">&nbsp;</ng-container>
             </span>
@@ -196,7 +197,10 @@ export interface ReservationOverlay {
             <span class="font-semibold text-gray-700 flex-1">
               {{ formatDate(pkg.startingDate) }} &rarr; {{ formatDate(pkg.endingDate) }}
             </span>
-            <span class="font-black" style="color:#AA4465">$ {{ pkg.priceNight }}/noche</span>
+            <span class="font-black" style="color:#AA4465">
+              $ {{ pkg.typeRental === 'ROOMS' ? pkg.pricePerRoomNight : pkg.priceNight }}
+              {{ pkg.typeRental === 'ROOMS' ? '/hab/noche' : '/noche' }}
+            </span>
             <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
                   [style.background]="getPkgLightColor(pkg.typeRental)"
                   [style.color]="getPkgColor(pkg.typeRental)">

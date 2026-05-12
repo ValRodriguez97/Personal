@@ -436,6 +436,14 @@ export class MakeRentalComponent implements OnInit {
     });
   }
 
+  maskAccount(account: string | string[]): string {
+    const mask = (acc: string) => '**** **** **** ' + acc.replace(/\s/g, '').slice(-4);
+    if (Array.isArray(account)) {
+      return account.map(mask).join(', ');
+    }
+    return mask(account);
+  }
+
   // ── Helpers ───────────────────────────────────────────────
   getRentalTypeLabel(type: string): string {
     const map: Record<string, string> = {

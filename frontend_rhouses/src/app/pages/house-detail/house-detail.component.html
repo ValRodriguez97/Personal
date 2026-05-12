@@ -436,6 +436,39 @@
             </div>
           </div>
 
+          <!-- Tipo de alquiler -->
+          <div>
+            <label class="block text-sm font-bold mb-2">
+              Tipo de alquiler *
+            </label>
+            <div class="grid grid-cols-3 gap-3">
+              <label class="cursor-pointer">
+                <input type="radio" name="pkgTypeRental" value="ENTIRE_HOUSE" [(ngModel)]="pkgForm.typeRental" class="peer sr-only"/>
+                <div class="p-3 border-2 rounded-xl text-sm font-semibold text-center transition-all
+                            peer-checked:border-[#AA4465] peer-checked:bg-[#AA4465]/5 peer-checked:text-[#AA4465]
+                            border-gray-200 text-gray-600 hover:border-gray-300">
+                  Casa completa
+                </div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="pkgTypeRental" value="ROOMS" [(ngModel)]="pkgForm.typeRental" class="peer sr-only"/>
+                <div class="p-3 border-2 rounded-xl text-sm font-semibold text-center transition-all
+                            peer-checked:border-[#AA4465] peer-checked:bg-[#AA4465]/5 peer-checked:text-[#AA4465]
+                            border-gray-200 text-gray-600 hover:border-gray-300">
+                  Habitaciones
+                </div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="pkgTypeRental" value="BOTH" [(ngModel)]="pkgForm.typeRental" class="peer sr-only"/>
+                <div class="p-3 border-2 rounded-xl text-sm font-semibold text-center transition-all
+                            peer-checked:border-[#AA4465] peer-checked:bg-[#AA4465]/5 peer-checked:text-[#AA4465]
+                            border-gray-200 text-gray-600 hover:border-gray-300">
+                  Ambas
+                </div>
+              </label>
+            </div>
+          </div>
+
           <!-- Precio -->
           <div *ngIf="pkgForm.typeRental === 'ENTIRE_HOUSE' || pkgForm.typeRental === 'BOTH'">
             <label class="block text-sm font-bold mb-1.5">
@@ -548,9 +581,9 @@
                 </span>
 
                 <p class="text-2xl font-black" style="color: #AA4465">
-                  $ {{ pkg.priceNight }}
+                  $ {{ pkg.typeRental === 'ROOMS' ? pkg.pricePerRoomNight : pkg.priceNight }}
                   <span class="text-sm font-normal text-gray-400">
-                    /noche
+                    {{ pkg.typeRental === 'ROOMS' ? '/hab/noche' : '/noche' }}
                   </span>
                 </p>
               </div>
@@ -607,7 +640,6 @@
             </div>
           </div>
         </div>
-
       </ng-container>
     </div>
   </div>

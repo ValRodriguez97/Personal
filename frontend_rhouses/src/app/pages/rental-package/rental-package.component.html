@@ -121,6 +121,24 @@
             </div>
           </div>
 
+           <!-- Tipo de alquiler -->
+          <div>
+            <label class="block text-sm font-bold mb-2" style="color: var(--rhouses-secondary-dark)">
+              Tipo de alquiler *
+            </label>
+            <div class="grid grid-cols-3 gap-3">
+              <label *ngFor="let opt of rentalTypeOptions" class="cursor-pointer">
+                <input type="radio" name="typeRental" [value]="opt.value" [(ngModel)]="form.typeRental" class="peer sr-only"/>
+                <div class="p-3 border-2 rounded-xl text-sm font-semibold text-center transition-all
+                             peer-checked:border-[#AA4465] peer-checked:bg-[#AA4465]/5 peer-checked:text-[#AA4465]
+                             border-gray-200 text-gray-600 hover:border-gray-300">
+                  <p class="font-bold">{{ opt.label }}</p>
+                  <p class="text-xs font-normal text-gray-400 mt-0.5">{{ opt.desc }}</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
           <!-- Precio -->
           <div *ngIf="form.typeRental === 'ENTIRE_HOUSE' || form.typeRental === 'BOTH'">
             <label class="block text-sm font-bold mb-1.5" style="color: var(--rhouses-secondary-dark)">
@@ -146,26 +164,6 @@
             </div>
           </div>
           
-
-
-          <!-- Tipo de alquiler -->
-          <div>
-            <label class="block text-sm font-bold mb-2" style="color: var(--rhouses-secondary-dark)">
-              Tipo de alquiler *
-            </label>
-            <div class="grid grid-cols-3 gap-3">
-              <label *ngFor="let opt of rentalTypeOptions" class="cursor-pointer">
-                <input type="radio" name="typeRental" [value]="opt.value" [(ngModel)]="form.typeRental" class="peer sr-only"/>
-                <div class="p-3 border-2 rounded-xl text-sm font-semibold text-center transition-all
-                             peer-checked:border-[#AA4465] peer-checked:bg-[#AA4465]/5 peer-checked:text-[#AA4465]
-                             border-gray-200 text-gray-600 hover:border-gray-300">
-                  <p class="font-bold">{{ opt.label }}</p>
-                  <p class="text-xs font-normal text-gray-400 mt-0.5">{{ opt.desc }}</p>
-                </div>
-              </label>
-            </div>
-          </div>
-
           <!-- Botones -->
           <div class="flex gap-3 pt-2">
             <button (click)="cancelForm()"
@@ -237,8 +235,10 @@
                     {{ getRentalTypeLabel(pkg.typeRental) }}
                   </span>
                   <p class="text-2xl font-black" style="color: #AA4465">
-                    $ {{ pkg.priceNight }}
-                    <span class="text-sm font-normal text-gray-400">/noche</span>
+                    $ {{ pkg.typeRental === 'ROOMS' ? pkg.pricePerRoomNight : pkg.priceNight }}
+                    <span class="text-sm font-normal text-gray-400">
+                      {{ pkg.typeRental === 'ROOMS' ? '/hab/noche' : '/noche' }}
+                    </span>
                   </p>
                 </div>
                 <div class="flex gap-1">
