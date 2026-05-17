@@ -66,11 +66,27 @@ export class MyRentalsComponent implements OnInit {
   selectedCustomerAccountId = '';
   selectedOwnerAccountId = '';
 
+  selectedPaymentOption: 'deposit' | 'full' = 'deposit';
+
+  // ── Getters ───────────────────────────────────────────────────────────────
+
   get pendingCount(): number { return this.rentals.filter(r => r.state === 'PENDING').length; }
   get confirmedCount(): number { return this.rentals.filter(r => r.state === 'CONFIRMED').length; }
 
   get depositAmount(): number {
     return this.payTarget ? this.payTarget.totalPrice * 0.2 : 0;
+  }
+
+  get remainingBalance(): number {
+    if (!this.payTarget) return 0;
+    // Usamos remainingBalance si el backend lo devuelve; si no, calculamos
+    return this.payTarget.remainingBalance ?? (this.payTarget.totalPrice - (this.payTarget.totalPaid ?? 0));
+  }
+
+  /** Monto real que se enviará al backend según la opción elegida */
+  get paymentAmount(): number {
+    if (this.selectedPaymentOption === 'deposit') return this.depositAmount;
+    return this.remainingBalance;
   }
 
   get selectedCustomerAccount(): BankAccountData | undefined {
@@ -83,18 +99,19 @@ export class MyRentalsComponent implements OnInit {
 
   get hasSufficientFunds(): boolean {
     const acc = this.selectedCustomerAccount;
-    return !!acc && acc.mount >= this.depositAmount;
+    return !!acc && acc.mount >= this.paymentAmount;
   }
 
   get readyToPay(): boolean {
-    return !!this.selectedCustomerAccountId &&
-           !!this.selectedOwnerAccountId &&
-           this.hasSufficientFunds;
+    if (!this.selectedCustomerAccountId || !this.selectedOwnerAccountId) return false;
+    return this.hasSufficientFunds;
   }
 
   get isLoadingAnyAccounts(): boolean {
     return this.isLoadingAccounts || this.isLoadingOwnerAccounts;
   }
+
+  // ── Ciclo de vida ─────────────────────────────────────────────────────────
 
   ngOnInit(): void {
     const user = this.authService.user();
@@ -119,6 +136,8 @@ export class MyRentalsComponent implements OnInit {
     });
   }
 
+  // ── Helpers de vista ──────────────────────────────────────────────────────
+
   private toVM(r: RentalResponse): RentalVM {
     return {
       ...r,
@@ -142,6 +161,8 @@ export class MyRentalsComponent implements OnInit {
     return map[state] ?? { label: state, icon: '', class: 'bg-gray-50 text-gray-600 border-gray-200' };
   }
 
+  // ── Búsqueda por código ───────────────────────────────────────────────────
+
   searchByCode(): void {
     if (!this.searchCode.trim()) return;
     this.isSearching = true;
@@ -161,6 +182,8 @@ export class MyRentalsComponent implements OnInit {
     });
   }
 
+  // ── Modal cancelar ────────────────────────────────────────────────────────
+
   openCancelModal(rental: RentalVM): void  { this.cancelTarget = rental; }
   closeCancelModal(): void { this.cancelTarget = null; }
 
@@ -176,6 +199,8 @@ export class MyRentalsComponent implements OnInit {
     this.isCancelling = false;
   }
 
+  // ── Modal pago ────────────────────────────────────────────────────────────
+
   openPayModal(rental: RentalVM): void {
     this.payTarget    = rental;
     this.paymentStep  = 'select_account';
@@ -183,6 +208,8 @@ export class MyRentalsComponent implements OnInit {
     this.selectedOwnerAccountId    = '';
     this.customerAccounts = [];
     this.ownerAccounts    = [];
+    // Resetear selector de monto según estado
+    this.selectedPaymentOption = rental.state === 'CONFIRMED' ? 'full' : 'deposit';
     this.loadCustomerAccounts();
     this.loadOwnerAccountsForRental(rental);
   }
@@ -195,6 +222,8 @@ export class MyRentalsComponent implements OnInit {
     this.paymentStep = 'select_account';
   }
 
+  // ── Carga de cuentas bancarias ────────────────────────────────────────────
+
   private loadCustomerAccounts(): void {
     const userId = this.authService.user()?.id;
     if (!userId) return;
@@ -205,15 +234,6 @@ export class MyRentalsComponent implements OnInit {
     });
   }
 
-  /**
-   * Carga las cuentas bancarias del propietario con tres niveles de fallback:
-   *
-   * Nivel 1 — rental.ownerId existe → llamada directa a BankAccountService.
-   * Nivel 2 — rental.ownerId vacío → busca la casa por countryHouseCode para obtener
-   *            su id, luego obtiene las reservas de esa casa (que sí traen ownerId)
-   *            y llama a BankAccountService con ese id.
-   * Nivel 3 — si aun así no hay ownerId → muestra mensaje de aviso.
-   */
   private loadOwnerAccountsForRental(rental: RentalVM): void {
     this.isLoadingOwnerAccounts = true;
 
@@ -224,32 +244,14 @@ export class MyRentalsComponent implements OnInit {
         return this.bankSvc.getByUser(ownerId);
       })
     ).subscribe({
-
       next: (res) => {
         if (!res) { this.noOwnerAccountsFound(); return; }
         this.ownerAccounts = res?.data ?? [];
         this.isLoadingOwnerAccounts = false;
       },
-
       error: () => {
         this.noOwnerAccountsFound();
       }
-    })
-  }
-
-  private fetchOwnerAccounts(ownerId: string): void {
-    this.bankSvc.getByUser(ownerId).subscribe({
-      next: (res) => {
-        this.ownerAccounts = res?.data ?? [];
-        this.isLoadingOwnerAccounts = false;
-        if (this.ownerAccounts.length === 0) {
-          this.toastr.warning(
-            'El propietario no tiene cuentas bancarias registradas. Contacta con él directamente.',
-            'Sin cuentas del propietario'
-          );
-        }
-      },
-      error: () => this.noOwnerAccountsFound()
     });
   }
 
@@ -262,6 +264,8 @@ export class MyRentalsComponent implements OnInit {
     );
   }
 
+  // ── Flujo de pago ─────────────────────────────────────────────────────────
+
   proceedToConfirm(): void {
     if (!this.readyToPay) return;
     this.paymentStep = 'confirm';
@@ -271,25 +275,42 @@ export class MyRentalsComponent implements OnInit {
     if (!this.payTarget) return;
     const customerId = this.authService.user()?.id;
     if (!customerId) return;
+
     this.paymentStep = 'processing';
+
     this.rentalSvc.payDeposit(this.payTarget.id, customerId, {
       customerBankAccountId: this.selectedCustomerAccountId,
       ownerBankAccountId:    this.selectedOwnerAccountId,
-      amount:                this.depositAmount
+      amount:                this.paymentAmount
     }).subscribe({
       next: () => {
         this.paymentStep = 'success';
+
+        // Calcular nuevo estado según el total pagado acumulado
+        const totalPaid = (this.payTarget!.totalPaid ?? 0) + this.paymentAmount;
+        const newState  = totalPaid >= this.payTarget!.totalPrice ? 'PAID' : 'CONFIRMED';
+
         this.rentals = this.rentals.map(r =>
           r.id === this.payTarget?.id
-            ? { ...r, state: 'CONFIRMED', uiBadge: this.getBadge('CONFIRMED'), uiCanPay: false }
+            ? {
+                ...r,
+                state:       newState as any,
+                uiBadge:     this.getBadge(newState),
+                uiCanPay:    newState !== 'PAID',
+                totalPaid,
+                remainingBalance: Math.max(0, (this.payTarget!.totalPrice) - totalPaid)
+              }
             : r
         );
+
         if (this.searchResult?.id === this.payTarget?.id) {
           this.searchResult = {
             ...this.searchResult,
-            state:    'CONFIRMED',
-            uiBadge:  this.getBadge('CONFIRMED'),
-            uiCanPay: false
+            state:           newState as any,
+            uiBadge:         this.getBadge(newState),
+            uiCanPay:        newState !== 'PAID',
+            totalPaid,
+            remainingBalance: Math.max(0, (this.payTarget!.totalPrice) - totalPaid)
           };
         }
       },
@@ -299,6 +320,8 @@ export class MyRentalsComponent implements OnInit {
       }
     });
   }
+
+  // ── Utilidades ────────────────────────────────────────────────────────────
 
   formatDate(d: string): string {
     if (!d) return '';

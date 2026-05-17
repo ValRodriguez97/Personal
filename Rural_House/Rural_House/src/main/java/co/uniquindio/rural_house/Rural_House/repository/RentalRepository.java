@@ -24,7 +24,7 @@ public interface RentalRepository extends JpaRepository<Rental, String> {
     List<Rental> findByState(RentalState state);
 
     @Query("SELECT r FROM Rental r WHERE r.countryHouse.id = :houseId " +
-           "AND r.state NOT IN ('CANCELLED') " +
+           "AND r.state NOT IN ('CANCELLED', 'EXPIRED') " +
            "AND r.checkInDate <= :checkOut AND r.checkOutDate >= :checkIn")
     List<Rental> findOverlappingRentals(@Param("houseId") String houseId,
                                         @Param("checkIn") LocalDate checkIn,
@@ -33,4 +33,17 @@ public interface RentalRepository extends JpaRepository<Rental, String> {
     @Query("SELECT r FROM Rental r WHERE r.state = 'PENDING' " +
            "AND r.rentalDayMade <= :expiryDate")
     List<Rental> findExpiredPendingRentals(@Param("expiryDate") LocalDate expiryDate);
+    @Query("SELECT r FROM Rental r WHERE r.countryHouse.id = :houseId " +
+            "AND r.state NOT IN ('CANCELLED', 'EXPIRED') " +
+            "AND r.checkInDate < :endDate AND r.checkOutDate > :startDate")
+    List<Rental> findActiveRentalsInRange(@Param("houseId") String houseId,
+                                          @Param("startDate") LocalDate startDate,
+                                          @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT r FROM Rental r WHERE r.countryHouse.owner.id = :ownerId " +
+            "AND r.state NOT IN ('CANCELLED', 'EXPIRED') " +
+            "AND r.checkInDate < :endDate AND r.checkOutDate > :startDate")
+    List<Rental> findActiveRentalsByOwnerInPeriod(@Param("ownerId") String ownerId,
+                                                  @Param("startDate") LocalDate startDate,
+                                                  @Param("endDate") LocalDate endDate);
 }
