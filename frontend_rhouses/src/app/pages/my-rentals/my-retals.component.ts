@@ -136,8 +136,6 @@ export class MyRentalsComponent implements OnInit {
     });
   }
 
-  onPaymentOptionChange(): void {}
-
   // ── Helpers de vista ──────────────────────────────────────────────────────
 
   private toVM(r: RentalResponse): RentalVM {
@@ -205,10 +203,6 @@ export class MyRentalsComponent implements OnInit {
 
   openPayModal(rental: RentalVM): void {
     this.payTarget    = rental;
-    if (!this.payTarget.totalPaid) this.payTarget.totalPaid = 0;
-    if (!this.payTarget.remainingBalance){
-      this.payTarget.remainingBalance = rental.totalPrice - (rental.totalPaid ?? 0);
-    }
     this.paymentStep  = 'select_account';
     this.selectedCustomerAccountId = '';
     this.selectedOwnerAccountId    = '';
@@ -221,6 +215,9 @@ export class MyRentalsComponent implements OnInit {
   }
 
   closePayModal(): void {
+    if (this.paymentStep === 'success') {
+      this.loadRentals(this.authService.user()!.id);
+    }
     this.payTarget   = null;
     this.paymentStep = 'select_account';
   }
@@ -279,22 +276,49 @@ export class MyRentalsComponent implements OnInit {
     const customerId = this.authService.user()?.id;
     if (!customerId) return;
 
-    this.paymentStep = 'processing';    
+    this.paymentStep = 'processing';
 
     this.rentalSvc.payDeposit(this.payTarget.id, customerId, {
       customerBankAccountId: this.selectedCustomerAccountId,
-      ownerBankAccountId: this.selectedOwnerAccountId,
-      amount: this.paymentAmount
+      ownerBankAccountId:    this.selectedOwnerAccountId,
+      amount:                this.paymentAmount
     }).subscribe({
       next: () => {
         this.paymentStep = 'success';
-        this.loadRentals(this.authService.user()!.id);
+
+        // Calcular nuevo estado según el total pagado acumulado
+        const totalPaid = (this.payTarget!.totalPaid ?? 0) + this.paymentAmount;
+        const newState  = totalPaid >= this.payTarget!.totalPrice ? 'PAID' : 'CONFIRMED';
+
+        this.rentals = this.rentals.map(r =>
+          r.id === this.payTarget?.id
+            ? {
+                ...r,
+                state:       newState as any,
+                uiBadge:     this.getBadge(newState),
+                uiCanPay:    newState !== 'PAID',
+                totalPaid,
+                remainingBalance: Math.max(0, (this.payTarget!.totalPrice) - totalPaid)
+              }
+            : r
+        );
+
+        if (this.searchResult?.id === this.payTarget?.id) {
+          this.searchResult = {
+            ...this.searchResult,
+            state:           newState as any,
+            uiBadge:         this.getBadge(newState),
+            uiCanPay:        newState !== 'PAID',
+            totalPaid,
+            remainingBalance: Math.max(0, (this.payTarget!.totalPrice) - totalPaid)
+          };
+        }
       },
       error: (err) => {
         this.toastr.error(err?.error?.message ?? 'Error al procesar el pago', 'Error');
         this.paymentStep = 'select_account';
       }
-    })
+    });
   }
 
   // ── Utilidades ────────────────────────────────────────────────────────────

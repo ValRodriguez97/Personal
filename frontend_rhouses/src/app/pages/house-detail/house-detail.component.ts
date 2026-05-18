@@ -262,11 +262,9 @@ export class HouseDetailComponent implements OnInit {
     this.countrySvc.deactivate(ownerId, this.houseId).subscribe({
       next: () => {
         this.toastr.success('Casa desactivada correctamente', '¡Listo!');
+        if (this.house) (this.house as any).stateCountryHouse = 'DISABLED';
         this.isProcessing = false;
         this.showDeactivateModal = false;
-        this.houseSvc.getHouseById(this.houseId).subscribe({
-          next: (res) => { this.house = res?.data ?? this.house; }
-        });
       },
       error: (err) => {
         this.toastr.error(err?.error?.message ?? 'Error al desactivar', 'Error');

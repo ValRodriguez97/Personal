@@ -89,10 +89,13 @@ export class MyHousesComponent implements OnInit {
     this.houseSvc.deactivate(ownerId, this.houseToDeactivate.id).subscribe({
       next: () => {
         this.toastr.success(`"${this.houseToDeactivate!.code}" ha sido desactivada`, '¡Desactivada!');
+        const idx = this.houses.findIndex(h => h.id === this.houseToDeactivate!.id);
+        if (idx !== -1) {
+          this.houses[idx] = { ...this.houses[idx], stateCountryHouse: 'DISABLED' };
+        }
         this.isDeactivating     = false;
         this.showDeactivateModal = false;
         this.houseToDeactivate  = null;
-        this.loadHouses();
       },
       error: (err) => {
         this.toastr.error(err?.error?.message ?? 'Error al desactivar la casa', 'Error');

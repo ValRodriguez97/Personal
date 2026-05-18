@@ -20,12 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutGrid,
-  User,
-  Search,
-  BarChart3,
-  ArrowLeft as ArrowLeftIcon, 
-  DollarSign, 
-  PieChart
+  User
 } from 'lucide-angular';
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -53,11 +48,7 @@ export const appConfig: ApplicationConfig = {
       ChevronLeft,
       ChevronRight,
       LayoutGrid,
-      User,
-      Search,
-      BarChart3,
-      DollarSign,
-      PieChart
+      User
     })),
     provideHttpClient( )
   ]

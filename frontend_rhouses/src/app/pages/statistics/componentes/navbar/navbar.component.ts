@@ -9,8 +9,8 @@ import { LucideAngularModule } from 'lucide-angular';
   templateUrl: './navbar.component.html'
 })
 export class NavbarComponent {
-  @Input() userName: string = '';
-  @Input() userInitial: string = '';
+  @Input() userName: string = 'María González';
+  @Input() userInitial: string = 'M';
 
   @Output() back = new EventEmitter<void>();
   @Output() home = new EventEmitter<void>();

@@ -1,6 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { Router } from '@angular/router';
-import { RentalService } from '../Rental/rental.service';
 
 export interface LoggedUser {
   id: string;
@@ -33,7 +32,7 @@ export class AuthService {
   // Token JWT del propietario (para llamadas autenticadas)
   readonly token = computed(() => this._user()?.token ?? '');
 
-  constructor(private router: Router, private rentalService: RentalService) {}
+  constructor(private router: Router) {}
 
   login(user: LoggedUser): void {
     this._user.set(user);
@@ -58,8 +57,6 @@ export class AuthService {
     sessionStorage.removeItem(this.STORAGE_KEY);
     sessionStorage.removeItem('rhouses_token');
     this.router.navigate(['/']);
-    this.rentalService.clearCache();
-  
   }
 
   private loadFromStorage(): LoggedUser | null {

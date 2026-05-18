@@ -102,6 +102,11 @@ export class MakeRentalComponent implements OnInit {
 
         this.loadPackages();
         this.loadReservationOverlays();
+        this.rentalSvc.observeActiveRentalsByHouse(this.house.code)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe((rentals) => {
+            this.reservationOverlays = rentals.map((r) => this.toOverlay(r));
+          });
       },
       error: () => {
         this.toastr.error('No se pudo cargar la casa', 'Error');
@@ -121,16 +126,13 @@ export class MakeRentalComponent implements OnInit {
   }
 
   private loadReservationOverlays(): void {
-    if (!this.houseId) return;
-    this.rentalSvc.findByOwner(this.houseId).subscribe({
-      next: (res: any) => {
-        const rentals = res?.data ?? [];
-        this.reservationOverlays = rentals
-        .filter((r: any) => r.state === 'PENDING' || r.state === 'CONFIRMED' || r.state === 'PAID')
-        .map((r: any) => this.toOverlay(r));
-      },
+    const user = this.authService.user();
+    if (!user?.id) return;
+
+    this.rentalSvc.findByCustomer(user.id).subscribe({
+      next: () => {},
       error: () => {}
-  });
+    });
   }
 
   // ── MEJORA 1: Selección explícita de paquete ─────────────
@@ -357,7 +359,6 @@ export class MakeRentalComponent implements OnInit {
     if (idx === -1) this.form.selectedBedroomCodes.push(strCode);
     else this.form.selectedBedroomCodes.splice(idx, 1);
     this.errors['bedrooms'] = '';
-    this.updateCalculations();
   }
 
   isBedroomSelected(code: any): boolean {

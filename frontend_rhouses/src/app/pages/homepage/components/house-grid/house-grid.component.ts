@@ -4,7 +4,6 @@ import { Router } from '@angular/router';
 import { CountryHouseResponse, CountryHouseService, AvailabilityResponse } from '../../../../Services/CountryHouse/country-house.service';
 import { SearchParams } from '../hero-section/hero-section.component';
 import { RentalService } from '../../../../Services/Rental/rental.service';
-import { fromEvent } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../../Services/Auth/Auth.service';
 
@@ -50,14 +49,6 @@ export class HouseGridComponent implements OnChanges, OnInit {
     this.rentalService.observeRentals()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.refreshReservationOverlaps());
-    
-    fromEvent(document, 'visibilitychange')
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        if (!document.hidden) {
-          this.enrichedHouses.forEach(h => this.loadPackages(h));
-        }
-      })
   }
 
   get empty(): boolean {

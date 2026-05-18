@@ -116,16 +116,10 @@ export class OwnerReservationsComponent implements OnInit {
     this.rentalSvc.registerPaymentAsOwner(rental.id, amount, ownerId).subscribe({
       next: () => {
         this.toastr.success(
-          `Reserva ${rental.rentalCode} confirmada.`,
+          `Reserva ${rental.rentalCode} confirmada. El cliente puede visualizar la confirmación.`,
           '✅ Pago confirmado'
         );
         this.processingId = null;
-        this.hydrateOwnerRentals(
-          Array.from(this.ownerHouseCodes).map(code =>
-            this.rentals.find(r => r.countryHouseCode === code)?.id ?? ''
-          ).filter(Boolean),
-          ownerId
-        );
       },
       error: (err) => {
         this.toastr.error(err?.error?.message ?? 'No se pudo confirmar el pago', 'Error');
