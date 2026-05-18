@@ -27,6 +27,6 @@ export const routes: Routes = [
   { path: 'owner-reservations', component: OwnerReservationsComponent, canActivate: [ownerGuard] },
   { path: 'make-rental/:id', component: MakeRentalComponent, canActivate: [customerGuard] },
   { path: 'my-rentals',      component: MyRentalsComponent, canActivate: [customerGuard]  },
-  { path: 'estadisticas', component: StatisticsComponent},
+  { path: 'estadisticas', component: StatisticsComponent, canActivate: [ownerGuard] },
   { path: '**',                                            redirectTo: '', pathMatch: 'full'  }
 ];

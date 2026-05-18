@@ -35,12 +35,15 @@ export class StatisticsComponent implements OnInit {
 
   // Rango de fechas por defecto
   dateRange: DateRange = {
-    from: new Date(2026, 0, 1),
-    to: new Date(2026, 4, 16)
+    from: new Date (new Date().getFullYear(), 0, 1),
+    to: new Date()
   };
 
   houses: CountryHouseResponse[] = [];
+  isLoadingHouses: boolean = true;
   ownerId: string = '';
+  ownerName: string = '';
+  ownerInitial: string = '';
 
   // ── VARIABLES DE DATOS PARA LAS GRÁFICAS ──
   // Estructuras vacías que llenaremos dinámicamente con la API
@@ -48,6 +51,8 @@ export class StatisticsComponent implements OnInit {
   occupancyData: any[] = [];
   reservationStatusData: any[] = [];
   fourthChartData: any = { title: '', type: 'pie', data: [] };
+
+  isEmpty: boolean = false;
 
   kpis = {
     revenue: '$0.00',
@@ -71,14 +76,19 @@ export class StatisticsComponent implements OnInit {
       try {
         const user = JSON.parse(rawUser);
         this.ownerId = user.id;
+        this.ownerName = user.fullName?.trim() || user.userName || '';
+        this.ownerInitial = this.ownerName.charAt(0).toUpperCase();
 
         if (this.ownerId) {
           this.countryHouseService.findByOwner(this.ownerId).subscribe({
             next: (response) => {
-              // FIX: Extraemos la data directamente como en OwnerReservationsComponent
               this.houses = response?.data || [];
+              this.isLoadingHouses = false;
             },
-            error: (err) => console.error('Error cargando casas:', err)
+            error: (err) => {
+              console.error('Error cargando casas:', err);
+              this.isLoadingHouses = false;
+            }
           });
         }
       } catch (e) {
@@ -213,6 +223,7 @@ export class StatisticsComponent implements OnInit {
           type: 'horizontal-bar',
           data: Object.keys(propertyRevenueMap).map(name => ({ name, ingresos: propertyRevenueMap[name] }))
         };
+        this.isEmpty = allRentals.length === 0;
       },
       error: (err) => console.error('Error calculando estadísticas globales:', err)
     });
@@ -276,6 +287,7 @@ export class StatisticsComponent implements OnInit {
             { name: 'Por habitaciones', value: roomsRevenue, color: '#2CA58D' }
           ]
         };
+        this.isEmpty = rentals.length === 0;
       },
       error: (err) => console.error('Error calculando estadísticas individuales:', err)
     });
@@ -303,6 +315,7 @@ export class StatisticsComponent implements OnInit {
 
   openGlobalStats(): void {
     this.view = 'global';
+    this.isEmpty = false;
     this.calculateGlobalStats();
   }
 
