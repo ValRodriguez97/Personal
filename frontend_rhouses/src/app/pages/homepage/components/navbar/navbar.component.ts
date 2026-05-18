@@ -2,6 +2,7 @@ import { Component, Input, OnInit, HostListener, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../../../../Services/Auth/Auth.service';
+import { RentalService } from '../../../../Services/Rental/rental.service';
 
 @Component({
   selector: 'app-navbar',
@@ -12,6 +13,7 @@ import { AuthService } from '../../../../Services/Auth/Auth.service';
 export class NavbarComponent {
   authService = inject(AuthService);
   private router = inject(Router);
+  private rentalService = inject(RentalService);
 
   dropdownOpen = false;
 
@@ -38,6 +40,7 @@ export class NavbarComponent {
 
   logout(): void {
     this.dropdownOpen = false;
+    this.rentalService.clearCache();
     this.authService.logout();
   }
 

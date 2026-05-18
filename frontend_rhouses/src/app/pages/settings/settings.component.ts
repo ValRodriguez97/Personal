@@ -71,7 +71,7 @@ export class SettingsComponent implements OnInit {
     // Campo reutilizado: para propietario = accessWord (min 4), para cliente = password (min 8 + patrón)
     password: [''],
     confirmPassword: ['']
-  }, { validators: [this.passwordsMatchValidator] });
+  }, { validators: [SettingsComponent.passwordsMatchValidator] });
 
   formData: BankForm = { accountNumber: '', bankName: '', accountType: 'ahorros', balance: '' };
   errors: BankFormErrors = {};
@@ -379,7 +379,7 @@ export class SettingsComponent implements OnInit {
             this.accounts.push({
               id:            created.id,
               numberAccount: created.numberAccount ?? '',
-              bankName:      created.bank ?? created.bankName ?? this.formData.bankName,
+              bankName:      created.bank ?? this.formData.bankName,
               accountType:   created.accountType ?? this.formData.accountType,
               balance:       created.mount ?? 0,
               isPrimary:     this.accounts.length === 0
@@ -438,7 +438,7 @@ export class SettingsComponent implements OnInit {
 
   goHome(): void { this.router.navigate(['/']); }
 
-  private passwordsMatchValidator(group: AbstractControl) {
+  private static passwordsMatchValidator(group: AbstractControl) {
     const password = group.get('password')?.value;
     const confirm  = group.get('confirmPassword')?.value;
     if (!password && !confirm) return null;

@@ -237,4 +237,8 @@ export class RentalService {
   private parseDate(dateValue: string): Date {
     return new Date(dateValue.split('T')[0] + 'T00:00:00');
   }
+
+  clearCache(): void {
+    this.rentalsCache$.next({});
+  }
 }

@@ -9,6 +9,9 @@ import { HouseGridComponent } from './components/house-grid/house-grid.component
 import { FooterComponent } from './components/footer/footer.component';
 import { AuthService } from '../../Services/Auth/Auth.service';
 import { ApiResponse, CountryHouseResponse, CountryHouseService } from '../../Services/CountryHouse/country-house.service';
+import { fromEvent } from 'rxjs';
+import { DestroyRef, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';  
 
 @Component({
   selector: 'app-homepage',
@@ -41,12 +44,21 @@ export class HomepageComponent implements OnInit {
     private router: Router
   ) {}
 
+  private destroyRef = inject(DestroyRef);
+
   ngOnInit(): void {
     if (this.authService.isOwner()) {
       this.isLoading = false;
       return;
     }
     this.loadHouses();
+    fromEvent(document, 'visibilitychange')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (!document.hidden && !this.authService.isOwner()) {
+          this.loadHouses();
+        }
+      });
   }
 
   loadHouses(): void {

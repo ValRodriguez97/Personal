@@ -123,8 +123,11 @@ export class FilterSidebarComponent implements OnChanges {
 
 
     this.priceRange = [10000, 2000000 ];
-    this.filtered.emit([...this.houses]);
-    this.applyFilters(); // Recarga la lista completa desde el backend
+    this.countryHouseService.searchHouses({}).subscribe({
+      next: (response) => {
+        if (response.data) this.filtered.emit(response.data);
+      }
+    });
   }
 
 

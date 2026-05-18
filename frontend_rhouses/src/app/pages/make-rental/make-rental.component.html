@@ -228,16 +228,31 @@
                   </div>
 
                   <div class="text-right shrink-0">
-                    <p class="text-2xl font-black" style="color: #AA4465">
-                      ${{ pkg.priceNight }}
-                    </p>
-                    <p class="text-xs text-gray-400 font-medium">/noche</p>
-                    <p class="text-2xl font-black" style="color: #AA4465">
-                      ${{ pkg.typeRental === 'ROOMS' ? pkg.pricePerRoomNight : pkg.priceNight }}
-                      <span class="font-normal text-gray-400">
-                        {{ pkg.typeRental === 'ROOMS' ? '/hab/noche' : '/noche' }}
-                      </span>
-                    </p>
+                    <!-- Precio casa completa -->
+                    <ng-container *ngIf="pkg.typeRental === 'ENTIRE_HOUSE'">
+                      <p class="text-2xl font-black" style="color: #AA4465">
+                        ${{ pkg.priceNight }}
+                      </p>
+                      <p class="text-xs text-gray-400 font-medium">/noche</p>
+                    </ng-container>
+
+                    <!-- Precio por habitación -->
+                    <ng-container *ngIf="pkg.typeRental === 'ROOMS'">
+                      <p class="text-2xl font-black" style="color: #AA4465">
+                        ${{ pkg.pricePerRoomNight }}
+                      </p>
+                      <p class="text-xs text-gray-400 font-medium">/hab/noche</p>
+                    </ng-container>
+
+                    <!-- Ambas opciones: mostrar los dos precios -->
+                    <ng-container *ngIf="pkg.typeRental === 'BOTH'">
+                      <p class="text-sm font-black" style="color: #AA4465">
+                        ${{ pkg.priceNight }}<span class="text-xs font-normal text-gray-400">/noche</span>
+                      </p>
+                      <p class="text-sm font-black" style="color: #AA4465">
+                        ${{ pkg.pricePerRoomNight }}<span class="text-xs font-normal text-gray-400">/hab/noche</span>
+                      </p>
+                    </ng-container>
                   </div>
                 </div>
 

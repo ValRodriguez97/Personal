@@ -136,6 +136,8 @@ export class MyRentalsComponent implements OnInit {
     });
   }
 
+  onPaymentOptionChange(): void {}
+
   // ── Helpers de vista ──────────────────────────────────────────────────────
 
   private toVM(r: RentalResponse): RentalVM {
@@ -203,6 +205,10 @@ export class MyRentalsComponent implements OnInit {
 
   openPayModal(rental: RentalVM): void {
     this.payTarget    = rental;
+    if (!this.payTarget.totalPaid) this.payTarget.totalPaid = 0;
+    if (!this.payTarget.remainingBalance){
+      this.payTarget.remainingBalance = rental.totalPrice - (rental.totalPaid ?? 0);
+    }
     this.paymentStep  = 'select_account';
     this.selectedCustomerAccountId = '';
     this.selectedOwnerAccountId    = '';
@@ -215,9 +221,6 @@ export class MyRentalsComponent implements OnInit {
   }
 
   closePayModal(): void {
-    if (this.paymentStep === 'success') {
-      this.loadRentals(this.authService.user()!.id);
-    }
     this.payTarget   = null;
     this.paymentStep = 'select_account';
   }
@@ -319,6 +322,21 @@ export class MyRentalsComponent implements OnInit {
         this.paymentStep = 'select_account';
       }
     });
+
+    this.rentalSvc.payDeposit(this.payTarget.id, customerId, {
+      customerBankAccountId: this.selectedCustomerAccountId,
+      ownerBankAccountId: this.selectedOwnerAccountId,
+      amount: this.paymentAmount
+    }).subscribe({
+      next: () => {
+        this.paymentStep = 'success';
+        this.loadRentals(this.authService.user()!.id);
+      },
+      error: (err) => {
+        this.toastr.error(err?.error?.message ?? 'Error al procesar el pago', 'Error');
+        this.paymentStep = 'select_account';
+      }
+    })
   }
 
   // ── Utilidades ────────────────────────────────────────────────────────────

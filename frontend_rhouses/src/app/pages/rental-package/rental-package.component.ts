@@ -226,9 +226,11 @@ export class RentalPackageComponent implements OnInit {
       this.houseSvc.addRentalPackage(this.ownerId!, this.selectedHouseId, payload).subscribe({
         next: (res) => {
           this.toastr.success('Paquete creado', '¡Éxito!');
-          this.isSaving = false;
           this.cancelForm();
-          this.loadPackages();
+          this.loadPackages()
+          if (this.selectedHouse?.code) {
+            this.loadOwnerReservations(this.selectedHouse.code);
+          }
         },
         error: (err) => {
           this.toastr.error(err?.error?.message ?? 'Error al crear el paquete', 'Error');
