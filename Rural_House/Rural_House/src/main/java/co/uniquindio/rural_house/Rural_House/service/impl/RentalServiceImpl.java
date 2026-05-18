@@ -51,9 +51,23 @@ public class RentalServiceImpl implements RentalService {
 
         // Verificar disponibilidad — sin solapamientos
         List<Rental> overlapping = rentalRepository.findOverlappingRentals(house.getId(), checkIn, checkOut);
-        if (!overlapping.isEmpty()) {
-            throw new BusinessException(
-                "Las fechas solicitadas no están disponibles. Consulte la disponibilidad antes de reservar.");
+        
+        if (isRoomRental) {
+            List<String> requestBedroomIds = house.getBedrooms().stream()
+                .filter(b -> request.getBedroomCodes().contains(String.valueOf(b.getBedroomCode())))
+                .map(Bedroom::getId)
+                .collect(Collectors.toList());
+            
+            boolean anyRoomConflict = overlapping.stream().anyMatch(r -> 
+                r.getRentalPlaceId().stream().anyMatch(requestBedroomIds::contains)
+            );
+            if(anyRoomConflict) {
+                throw new BusinessException("Una o más habitaciones seleccionadas no están disponibles para esas fechas.");
+            } 
+        } else {
+            if (!overlapping.isEmpty()) {
+                throw new BusinessException("Las fechas solicitadas no están disponibles. Consulte la disponibilidad antes de reservar.");
+            }
         }
 
         // Calcular precio total
