@@ -1,0 +1,97 @@
+<app-navbar />
+<main class="carrito-page pago-resultado-page">
+  <header class="carrito-heading">
+    <div>
+      <p class="reco-eyebrow">Finaliza tu compra</p>
+      <h1>Resultado del pago</h1>
+    </div>
+  </header>
+
+  @if (error(); as mensaje) {
+    <p class="alert alert-error" role="alert">{{ mensaje }}</p>
+  }
+
+  @if (cargando()) {
+    <section class="pago-resultado" role="status" aria-live="polite">
+      <span class="spinner pago-spinner" aria-hidden="true"></span>
+      <p>Confirmando tu pago con Wompi…</p>
+    </section>
+  } @else if (resultado(); as pago) {
+    @switch (vista()) {
+      @case ('aprobado') {
+        <section class="pago-resultado pago-aprobado" role="status" aria-live="polite">
+          <h2>¡Pago aprobado!</h2>
+          @if (pago.pedidoId; as pedidoId) {
+            <p>Tu pedido <strong>#{{ pedidoId }}</strong> fue creado con el pago y ya lo estamos preparando.</p>
+          } @else {
+            <p>Tu compra fue pagada correctamente.</p>
+          }
+          <dl class="pago-detalle">
+            <div><dt>Referencia</dt><dd>{{ pago.referencia }}</dd></div>
+            <div><dt>Total pagado</dt><dd>{{ precio(pago.total) }}</dd></div>
+            @if (pago.metodoPago) {
+              <div><dt>Medio de pago</dt><dd>{{ pago.metodoPago }}</dd></div>
+            }
+          </dl>
+          <div class="pago-acciones">
+            <a class="btn-primary btn-inline" routerLink="/cliente">Volver al inicio</a>
+            <a class="btn-ghost btn-inline" routerLink="/cliente/catalogo">Seguir comprando</a>
+          </div>
+        </section>
+      }
+      @case ('pendiente') {
+        <section class="pago-resultado pago-pendiente" role="status" aria-live="polite">
+          <h2>Tu pago está en proceso</h2>
+          <p>
+            Wompi aún no confirma la transacción <strong>{{ pago.referencia }}</strong>.
+            El pedido se creará cuando el pago sea aprobado. Tu carrito se conserva; recarga esta página
+            en unos minutos para ver el resultado.
+          </p>
+          <a class="btn-ghost btn-inline" routerLink="/cliente">Volver al inicio</a>
+        </section>
+      }
+      @case ('rechazado') {
+        <section class="pago-resultado pago-rechazado" role="alert">
+          <h2>Tu pago no fue aprobado</h2>
+          <p>La transacción <strong>{{ pago.referencia }}</strong> fue rechazada o no pudo completarse. No se realizó ningún cobro y no se creó el pedido.</p>
+          <p>Los productos siguen en tu carrito; puedes volver al checkout e intentarlo de nuevo.</p>
+          <a class="btn-primary btn-inline" routerLink="/cliente/checkout">Volver al checkout</a>
+        </section>
+      }
+      @case ('sin-stock') {
+        <section class="pago-resultado pago-rechazado" role="alert">
+          <h2>Algunas prendas se agotaron mientras pagabas</h2>
+          <p>
+            Lo sentimos, otra compra se confirmó antes que la tuya y estas prendas ya no tienen unidades suficientes.
+            @if (pago.pedidoId; as pedidoId) {
+              El pedido <strong>#{{ pedidoId }}</strong> fue cancelado y
+            }
+            <strong>tu pago será reembolsado</strong>. Los productos siguen en tu carrito.
+          </p>
+          <ul class="pago-agotadas">
+            @for (prenda of pago.prendasAgotadas; track prenda.prendaId + prenda.talla) {
+              <li>
+                <strong>{{ prenda.nombre }}</strong> · talla {{ prenda.talla }}
+                (pediste {{ prenda.cantidadSolicitada }}, disponibles {{ prenda.stockDisponible }})
+              </li>
+            }
+          </ul>
+          <div class="pago-acciones">
+            <a class="btn-primary btn-inline" routerLink="/cliente/carrito">Revisar el carrito</a>
+            <a class="btn-ghost btn-inline" routerLink="/cliente/catalogo">Volver al catálogo</a>
+          </div>
+        </section>
+      }
+      @case ('reembolso') {
+        <section class="pago-resultado pago-rechazado" role="alert">
+          <h2>No pudimos completar tu pedido</h2>
+          <p>
+            Wompi aprobó el pago, pero no fue posible completar la compra.
+            <strong>Tu pago será reembolsado.</strong>
+          </p>
+          <a class="btn-primary btn-inline" routerLink="/cliente/catalogo">Volver al catálogo</a>
+        </section>
+      }
+    }
+  }
+</main>

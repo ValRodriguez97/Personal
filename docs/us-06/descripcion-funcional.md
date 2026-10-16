@@ -1,0 +1,202 @@
+# US-06: Gestión integral del perfil infantil
+
+## Objetivo y alcance
+
+La US-06 implementa, dentro del Proceso 1 de LittleStyle, la gestión de la cuenta propia del usuario y, para el cliente, sus perfiles infantiles asociados. El alcance observable comprende consultar, actualizar y eliminar los datos de la cuenta autenticada; gestionar perfiles infantiles; registrar mediciones y consultar su historial; capturar alergias y preferencias; y seleccionar localmente un perfil activo en la interfaz.
+
+El propósito del Proceso 1, según la Definición del Proyecto, es mantener información estructurada de varios menores —incluidos datos físicos, historial de crecimiento, preferencias y restricciones textiles— y dejarla disponible para funcionalidades posteriores. La recomendación personalizada de prendas no forma parte de la implementación funcional de esta historia: UI-5 muestra el control “Recomendaciones” deshabilitado como elemento próximo.
+
+El flujo empieza cuando un cliente autenticado consulta, crea, selecciona o edita uno de sus perfiles. Los datos se validan antes de persistirse. Las mediciones se pueden agregar desde el detalle o desde la edición del perfil, consultar en el historial y corregir individualmente; eliminar un perfil elimina sus mediciones en cascada.
+
+## Actor e historia de usuario
+
+**Actor principal:** padre, madre o acudiente con rol `CLIENTE` y sesión autenticada.
+
+**Historia:** como cliente, quiero crear y mantener perfiles infantiles con sus medidas, alergias y preferencias, para consultar su información e historial de crecimiento y tenerla preparada para futuras funciones de recomendación.
+
+Los roles `VENDEDOR` y `ADMINISTRADOR` no tienen autorización para las rutas `/api/cliente/**`.
+
+## Funcionalidades implementadas
+
+### Cuenta del usuario autenticado
+
+- Consultar los datos de la propia cuenta (`GET /api/auth/me`).
+- Actualizar datos personales: nombre, apellido, correo, teléfono y, para vendedores, nombre de tienda.
+- Cambiar contraseña de forma opcional, verificando contraseña actual, requisitos de seguridad y confirmación. Una actualización correcta devuelve JWT nuevo con los claims vigentes.
+- Solicitar la eliminación de la cuenta propia con confirmación. La cuenta queda en estado `ELIMINADO`, distinto de `SUSPENDIDO` (reservado para suspensiones de moderación); el administrador no puede eliminar su propia cuenta desde la aplicación.
+- En la misma transacción, publicar el evento de dominio `CuentaEliminadaEvent` para que el módulo de perfiles elimine perfiles infantiles, mediciones y colecciones de preferencias. Los datos identificables de la cuenta se anonimizan, se invalida la contraseña y se reemplaza el correo por uno técnico único, liberando el correo original para un nuevo registro. Los tokens emitidos antes de la eliminación dejan de autenticar de inmediato.
+- Las altas y actualizaciones de perfiles bloquean la fila de la cuenta. Por ello, una creación concurrente con la baja se completa antes de esta y también se elimina, o se rechaza después de la baja; no debe dejar datos huérfanos.
+- La interfaz solicita confirmación explícita, pero no vuelve a pedir la contraseña actual. Los plazos y las categorías que eventualmente deban conservarse por obligación legal o contractual están pendientes de validación jurídica.
+- No se permite cambiar rol, estado ni evidencia de aceptación de términos desde esta operación. No hay borrado físico de cuenta.
+
+### Perfiles y mediciones
+
+- Crear, listar, consultar por identificador, actualizar y eliminar perfiles infantiles.
+- Mostrar la edad de menores de un mes en días para evitar que una edad distinta de cero se interprete como “0 meses”.
+- Crear el perfil y su medición inicial mediante una única operación de servicio `@Transactional`; un error al validar o guardar la medición revierte también el perfil.
+- Limitar el número de perfiles por cliente mediante `app.perfiles.max`; el valor predeterminado en código es 10. El servicio rechaza una nueva creación si el cliente ya alcanzó ese límite.
+- Registrar mediciones con fecha, estatura y peso.
+- Agregar mediciones tanto desde la edición del perfil como desde el botón “Nueva medición” en el historial del detalle.
+- Corregir cualquier medición propia desde el historial, sin una ventana de tiempo; la operación valida de nuevo la fecha y los rangos correspondientes a la edad.
+- Una medición nueva no puede tener fecha anterior a la última registrada ni una estatura menor que la última; las correcciones de registros existentes pueden ajustar estos datos. El peso puede aumentar o disminuir entre mediciones.
+- Actualizar `fechaActualizacion` del perfil al agregar una medición para que el orden de perfiles refleje actividad reciente.
+- Actualizar `fechaActualizacion` del perfil al corregir una medición.
+- Consultar el historial de mediciones en orden descendente por fecha.
+- Mostrar en la respuesta del perfil la medición más reciente, calculada por fecha y, en caso de empate, por identificador.
+- Eliminar las mediciones asociadas al eliminar un perfil mediante la relación JPA con cascada y `orphanRemoval`.
+
+No existe endpoint para eliminar individualmente una medición; la corrección de una medición existente sí está disponible mediante `PUT`.
+
+### Alergias
+
+El campo `alergias` acepta un conjunto de opciones cerradas:
+
+`FIBRAS_SINTETICAS`, `LANA`, `TINTES`, `BROCHES_METALICOS`, `ALGODON`, `LATEX_ELASTICO`, `NIQUEL`, `CUERO`, `FORMALDEHIDO` y `OTRA`.
+
+`otraAlergia` admite hasta 60 caracteres y debe tener contenido no vacío cuando se selecciona `OTRA`. Debe ser `null` cuando `OTRA` no está seleccionada. Si `sinAlergias` es verdadero, `alergias` debe estar vacío y `otraAlergia` debe ser `null`; en caso contrario debe declararse al menos una alergia.
+
+### Preferencias
+
+- `coloresPreferidos` es un conjunto de opciones enumeradas: `ROSA`, `LILA`, `AZUL`, `CELESTE`, `VERDE`, `AMARILLO`, `ROJO`, `NARANJA`, `MORADO`, `BLANCO`, `NEGRO`, `GRIS`, `BEIGE` y `CAFE`.
+- `estampadosPreferidos` es un conjunto de opciones enumeradas: `LISO`, `FLORES`, `ESTRELLAS`, `RAYAS`, `CUADROS`, `LUNARES`, `ANIMALES`, `DIBUJOS_ANIMADOS`, `GEOMETRICO` y `MARINERO`.
+- La interfaz permite seleccionar hasta diez opciones de cada categoría y deshabilita opciones nuevas al alcanzar el límite. El backend valida también el máximo de diez.
+- `otroColor` y `otroEstampado` son opcionales. Cada campo admite de 2 a 30 letras y espacios. El servidor normaliza el texto y, si coincide con una opción enumerada ignorando mayúsculas, espacios, guiones bajos y diacríticos, lo incorpora al conjunto enumerado y deja el texto libre en `null`.
+- La holgura es uno de `AJUSTADA`, `REGULAR` o `HOLGADA`; la contextura es `DELGADA`, `MEDIA` o `ROBUSTA`.
+
+Los DTO utilizan conjuntos (`Set`), por lo que su representación no conserva duplicados. Los valores enum desconocidos en el JSON producen HTTP 400 con un error asociado al campo reconocido por el manejador del módulo.
+
+### Completitud y perfil activo
+
+`CalculadoraCompletitud` evalúa ocho grupos de información: nombre, fecha de nacimiento, contextura, holgura, estatura de la última medición, peso de la última medición, declaración de alergias (incluida la declaración explícita de ausencia) y preferencias (al menos una opción enumerada o libre). La respuesta incluye `porcentajeCompletitud`, calculado como campos diligenciados sobre ocho y redondeado al entero más cercano. La lista muestra “Completo” desde 90 % y “Incompleto” por debajo de ese umbral.
+
+Para perfiles incompletos, la misma respuesta incluye `camposPendientes`; la lista muestra esos grupos bajo “Para completar” para indicar al cliente qué datos agregar. Cuando falten preferencias, el mensaje es explícito: “Agrega al menos un color o estampado preferido”.
+
+En frontend, `PerfilActivoService` mantiene el perfil seleccionado en un signal y persiste su identificador en `localStorage` con la clave `littleStyle.perfilActivoId`. Al sincronizar la lista valida que el identificador guardado aún exista; si no existe, selecciona el primer perfil y actualiza la persistencia. Sin perfiles, deja el estado activo en `null`. El selector abierto desde “Cambiar perfil” permite elegir un menor y volver al inicio.
+
+### Talla provisional
+
+`tallaProvisional(edadAnios)` calcula una talla orientativa en intervalos pares de dos años, con tope 16. Para edad no finita o negativa retorna 0. El propio código la describe como **provisional hasta US-07**. No es el resultado de un motor de recomendación ni debe presentarse como recomendación de talla.
+
+## Reglas de validación
+
+### Perfil
+
+- Nombre obligatorio, no vacío tras quitar espacios y máximo 60 caracteres.
+- Fecha de nacimiento obligatoria, anterior a hoy y correspondiente a una persona menor de 18 años.
+- No se permite crear ni actualizar un perfil cuando otro perfil de la misma cuenta ya tiene el mismo nombre normalizado (se quitan espacios de los extremos, se comprimen espacios consecutivos, se ignoran mayúsculas y diacríticos) y la misma fecha de nacimiento. La regla se verifica en el backend; las operaciones de escritura se serializan por cuenta para impedir duplicados por concurrencia. El servidor responde HTTP 409 y asocia el error al campo `nombre`.
+- Contextura y holgura obligatorias y limitadas a sus enumeraciones.
+- Se debe declarar al menos una alergia o marcar `sinAlergias`.
+- Hasta diez alergias; `OTRA` requiere texto de hasta 60 caracteres. El texto no aplica sin `OTRA`.
+- Colores y estampados son conjuntos enumerados, obligatorios como colecciones (pueden estar vacíos) y limitados a diez por categoría.
+- Las preferencias libres opcionales deben contener de 2 a 30 caracteres compuestos por letras y espacios.
+
+### Mediciones
+
+La fecha de medición es obligatoria, no puede ser futura ni anterior a la fecha de nacimiento. Al agregar una medición, su fecha no puede ser anterior a la última medición registrada y la estatura no puede ser menor que la última estatura; se permite que el peso aumente o disminuya. Para corregir una captura errónea se edita el registro existente, operación disponible sin límite de tiempo y que puede corregir también una estatura menor. Los límites generales son estatura de 40 a 200 cm y peso de 2 a 120 kg. Además, se aplican los siguientes intervalos inclusivos según la edad en años cumplidos a la fecha de medición:
+
+| Edad | Estatura | Peso |
+|---|---:|---:|
+| Menor de 2 años | 40–100 cm | 2–20 kg |
+| De 2 a 5 años | 60–130 cm | 5–40 kg |
+| De 6 a 9 años | 80–160 cm | 10–80 kg |
+| De 10 a 13 años | 100–190 cm | 15–120 kg |
+| 14 años o más (el perfil siempre es menor de 18) | 120–200 cm | 25–120 kg |
+
+El validador de backend comprueba los límites generales y los del tramo etario. La interfaz reproduce las comprobaciones y rangos en el formulario; el backend vuelve a validar antes de guardar.
+
+## Seguridad, propiedad y persistencia
+
+### Autenticación y autorización
+
+Las rutas del controlador están bajo `/api/cliente/perfiles`; `SecurityConfig` exige rol `CLIENTE` para `/api/cliente/**`. El servicio obtiene la identidad del usuario autenticado mediante `SecurityUtils.usuarioActual()`; el cliente no suministra `clienteId` en el cuerpo de perfil. Las consultas de perfiles utilizan `findByIdAndClienteId`, y las consultas del historial filtran por el identificador del perfil y el cliente propietario.
+
+Un identificador que no pertenece al cliente autenticado se trata como no encontrado y devuelve HTTP 404, tanto para las operaciones sobre el perfil como para sus mediciones. Una solicitud sin autenticación devuelve HTTP 401 y los roles `VENDEDOR` y `ADMINISTRADOR` reciben HTTP 403.
+
+### Cifrado AES-GCM
+
+`CifradoPerfil` utiliza `AES/GCM/NoPadding`, un IV aleatorio de 12 bytes y una etiqueta GCM de 128 bits. La clave se configura desde la propiedad `app.crypto.perfil-key`, asociada a la variable de entorno **`PERFIL_ENC_KEY`**. El código exige una clave Base64 que decodifique a 32 bytes. Este documento no incluye valores de claves.
+
+| Dato persistido | Estado según las conversiones JPA |
+|---|---|
+| Nombre (`nombre`) | Cifrado con `NombreCifradoConverter`. |
+| Fecha de nacimiento (`fecha_nacimiento`) | Cifrada con `FechaNacimientoConverter`. |
+| Contextura (`contextura`), holgura (`holgura`) y declaración `sin_alergias` | Serializados como texto y cifrados con `TextoLegadoCifradoConverter`, que admite leer sus valores previos en claro para migrarlos. |
+| Conjunto de alergias (`alergias_cifradas`) | Serializado y cifrado con `AlergiasConverter`. |
+| Descripción de otra alergia (`otra_alergia_cifrada`) | Cifrada con `StringCifradoConverter`. |
+| Conjuntos de colores y estampados preferidos | Cada opción de las colecciones JPA se cifra con `TextoLegadoCifradoConverter`, que admite leer los códigos enum previos en claro para migrarlos. |
+| Otro color (`otro_color_cifrado`) | Cifrado con `StringCifradoConverter`. |
+| Otro estampado (`otro_estampado_cifrado`) | Cifrado con `StringCifradoConverter`. |
+| Fecha de medición (`fecha_medicion`) | Cifrada con `FechaMedicionConverter`; el historial se ordena por fecha descifrada en el servicio. |
+| Estatura (`estatura_cifrada`) y peso (`peso_cifrado`) | Cifrados como texto decimal con `BigDecimalCifradoConverter`. |
+| Identificadores, relación con cliente y fechas de creación/actualización | Permanecen sin cifrar como metadatos operativos de relación y auditoría. |
+
+Los valores personales y de salud se cifran mediante converters JPA con AES-GCM. Los IDs, la relación de propiedad y las fechas operativas de creación/actualización se conservan como metadatos relacionales; no contienen los campos de perfil que se muestran al cliente. Las fechas cifradas se ordenan luego de descifrarse en el servicio; no se usa el orden SQL para el historial. Con `app.perfiles.cifrado.migrar-datos=true`, `PerfilDatosCifradoMigracion` actualiza de forma transaccional, una sola vez, filas legadas en claro o con el formato cifrado anterior; `PerfilDatosCifradoVersion` conserva la marca JPA para evitar repetirla. La ejecución de producción se limita a una instancia durante una ventana de mantenimiento.
+
+El módulo de perfiles y las páginas frontend examinadas no contienen llamadas propias a `logger`, `System.out` o `console` para emitir datos del menor. Esto no equivale a una garantía frente a cualquier excepción: el manejador global puede registrar excepciones no controladas y URI de solicitudes. El transporte HTTPS/TLS no lo configura este módulo; su cumplimiento depende de la configuración del despliegue y no se certifica aquí.
+
+## Endpoints
+
+Las operaciones de cuenta requieren un usuario autenticado y solo actúan sobre la identidad de su token.
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/api/auth/me` | Consulta los datos de la cuenta autenticada. |
+| `PUT` | `/api/auth/me` | Actualiza los datos propios y devuelve una sesión/token actualizado. El cambio de contraseña es opcional. |
+| `DELETE` | `/api/auth/me` | Elimina perfiles infantiles, mediciones y preferencias asociadas, anonimiza la cuenta propia, marca su estado `ELIMINADO` y responde `204`. La operación y la limpieza se ejecutan dentro de la misma transacción. La acción no solicita contraseña actual; se requiere confirmación en la interfaz. No permite eliminar una cuenta administradora. |
+
+Las rutas de perfiles y mediciones requieren rol `CLIENTE` y autenticación conforme a `SecurityConfig`. `{id}` identifica un perfil propiedad del usuario autenticado.
+
+| Método | Ruta | Rol | Descripción |
+|---|---|---|---|
+| `GET` | `/api/cliente/perfiles` | `CLIENTE` | Lista perfiles propios, ordenados por fecha de actualización descendente. |
+| `GET` | `/api/cliente/perfiles/{id}` | `CLIENTE` | Consulta un perfil propio y su medición más reciente. |
+| `POST` | `/api/cliente/perfiles` | `CLIENTE` | Crea un perfil, sujeto al límite de perfiles y validaciones. Responde 201. |
+| `POST` | `/api/cliente/perfiles/con-medicion-inicial` | `CLIENTE` | Crea el perfil y la primera medición en una única transacción; ante error revierte ambos. Responde 201. |
+| `PUT` | `/api/cliente/perfiles/{id}` | `CLIENTE` | Actualiza el perfil propio; responde 200. |
+| `DELETE` | `/api/cliente/perfiles/{id}` | `CLIENTE` | Elimina el perfil propio y sus mediciones en cascada; responde 204. |
+| `POST` | `/api/cliente/perfiles/{id}/mediciones` | `CLIENTE` | Agrega una medición validada al perfil; responde 201. |
+| `PUT` | `/api/cliente/perfiles/{id}/mediciones/{medicionId}` | `CLIENTE` | Corrige una medición del perfil propio, valida los datos y actualiza la fecha del perfil; responde 200. Permite corregir mediciones históricas sin límite de tiempo. |
+| `GET` | `/api/cliente/perfiles/{id}/mediciones` | `CLIENTE` | Lista el historial propio en orden descendente de fecha. |
+
+## Pantallas
+
+| Interfaz | Comportamiento que existe |
+|---|---|
+| Mi cuenta | Acceso desde la barra de navegación; permite consultar/editar datos propios, cambiar la contraseña verificando la actual y solicitar la supresión de datos y eliminación de cuenta con confirmación. |
+| UI-3, inicio de cliente | Saludo y acceso a Mis hijos; muestra el perfil activo con edad, última estatura y talla provisional, o invitación si no existen perfiles. “Cambiar perfil” abre una selección de perfiles. Catálogo, pedidos y carrito son accesos deshabilitados sin ruta funcional. |
+| UI-4, lista de perfiles | Presenta perfiles con avatar SVG, edad/talla, completitud, medidas, contextura, alergias y preferencias disponibles. Tiene acciones para ver, editar y un único CTA para agregar. En modo selección presenta opciones y retorna al inicio tras elegir. |
+| UI-5, detalle/formulario | Muestra información básica, medidas actuales, preferencias, restricciones e historial descendente. Permite agregar mediciones al editar el perfil o desde “Nueva medición” en el historial; desde el historial también permite corregir una medición. Crear o corregir una medición usa una operación separada de la actualización de los datos del perfil. El control “Recomendaciones” está deshabilitado. El alta envía el perfil y la primera medición en una sola solicitud atómica; ante un error conserva el formulario para corregir o reintentar sin dejar un perfil parcial. Las altas y correcciones también actualizan la fecha del perfil. |
+
+## Trazabilidad de requisitos no funcionales
+
+La columna de prueba identifica una prueba existente que respalda parte del mecanismo. No afirma que se hayan medido los porcentajes poblacionales especificados en el Plan de Calidad.
+
+| RNF | Mecanismo implementado | Prueba automatizada asociada | Alcance no demostrado |
+|---|---|---|---|
+| RNF-06, confidencialidad | Converters AES-GCM para datos personales, físicos, alergias y preferencias, migración de filas legadas, identidad y propiedad filtradas por usuario; sin logs explícitos de datos del menor en el módulo. | `CifradoPerfilConverterTest.cifraYDescifraFechaNacimientoSinGuardarTextoPlano`, `cifraYDescifraFechaMedicionSinGuardarTextoPlano`, `cifraYDescifraValoresDecimales`, `cifraYDescifraTextoLibreSinGuardarElValorEnClaro`, `cifraYDescifraAlergias`, `rechazaCifradoAlteradoEnLugarDeTratarloComoTextoPlano`; `PerfilInfantilIntegrationTest.crudMedicionesYEliminacionEnCascada`, `migraFilasLegadasYConservaLaLecturaDelPerfilYElHistorial`, `seguridadRequiereTokenYRechazaRolesDistintosDeCliente`; `PerfilInfantilServiceTest.ocultaPerfilesDeOtrosClientesComoNoEncontrados`. | La prueba no mide el umbral >96% del plan. TLS depende del despliegue y del esquema actualizado al desplegar. |
+| RNF-12, completitud | El DTO recoge datos básicos, declaración de alergias, preferencias y perfil; las mediciones se representan por separado. `CalculadoraCompletitud` computa ocho grupos y UI-4 muestra la insignia desde 90%. | `CalculadoraCompletitudTest.consideraElPerfilCompletoCuandoTieneDatosYMedicion`, `marcaComoDiligenciadaLaDeclaracionExplicitaDeNoAlergias`, `consideraLaPreferenciaLibreComoPreferenciaDiligenciada`; `perfiles-lista.spec.ts` (“marca Incompleto cuando la completitud es menor al 90 por ciento”). | No se mide qué porcentaje de todos los perfiles reales supera el 90% solicitado por el plan. |
+| RNF-16, prevención de errores en medidas | Validaciones de formulario Angular y `ValidadorMedidas` para fechas, rangos generales y coherencia por edad; el servidor repite la validación. | `ValidadorMedidasTest.aceptaMedidasCoherentesConLaEdad`, `rechazaMedicionAnteriorAlNacimientoEnElCampoCorrespondiente`, `rechazaEstaturaFueraDelRangoDelTramoEtario`; `PerfilInfantilIntegrationTest.validaPerfilYMedicionYNoExponePerfilAjeno`; `perfil-detalle.spec.ts` (“valida los datos obligatorios y alergias antes de enviar”). | No se ha medido la tasa de errores de captura (<5%) ni cada límite de cada tramo tiene una prueba unitaria dedicada. |
+| RNF-19, facilidad de actualización | Consulta y edición en UI-5, registro de nuevas medidas, corrección individual sin límite de tiempo y vista del historial ordenado; el backend valida las mediciones y mantiene la más reciente. | `PerfilInfantilIntegrationTest.crudMedicionesYEliminacionEnCascada`, `corrigeMedicionPropiaActualizaFechaDelPerfilYRechazaMedicionAjena`; `perfil-detalle.spec.ts` (edición de perfil, alta desde ambas pantallas y corrección desde historial). | No se mide que más del 60% de perfiles se actualice en menos de seis meses. No se implementa eliminación individual de mediciones. |
+
+### RNF propuesto: supresión de datos personales del titular
+
+El siguiente requisito se propone con el siguiente identificador libre, **RNF-33**. No se editó ni renumeró el Plan de Calidad: sus identificadores RNF-30, RNF-31 y RNF-32 requieren revisión antes de incorporar formalmente este nuevo requisito.
+
+| ID | Categoría ISO/IEC 25010 | Descripción | Métrica/Criterio de aceptación | Prioridad | Justificación |
+|---|---|---|---|---|---|
+| RNF-33 (propuesto) | Seguridad — confidencialidad | Cuando el titular confirma la eliminación de su cuenta, el sistema debe suprimir sus perfiles infantiles, mediciones y preferencias asociadas; anonimizar los datos identificables de la cuenta; liberar el correo original; y revocar los tokens previos. Se atenderá el derecho de supresión conforme a la Ley 1581 de 2012, artículos 8 y 15, sin perjuicio de información cuya conservación deba validarse jurídicamente. | En las pruebas de aceptación, solicitudes de eliminación completadas con éxito que cumplen simultáneamente todas las verificaciones de supresión de perfiles/mediciones/preferencias, anonimización, disponibilidad del correo original para registro y rechazo HTTP 401 del token previo / total de solicitudes de eliminación probadas = 100 %. | Alta | Reduce la exposición de datos personales y de menores cuando el titular ejerce sus derechos, y permite verificar el resultado completo mediante pruebas repetibles. Los plazos y excepciones de conservación están pendientes de validación jurídica. |
+
+## Supuestos y limitaciones
+
+- El rol y el identificador propietario se obtienen de la sesión autenticada; la aplicación frontend envía el token mediante la infraestructura común de autenticación.
+- El máximo se configura con `app.perfiles.max` y su valor predeterminado en configuración/código es 10; el despliegue puede sobrescribirlo.
+- Las colecciones de colores y estampados admiten cero opciones; las preferencias libres también son opcionales.
+- La talla presentada es únicamente una aproximación provisional hasta US-07.
+- El módulo todavía no implementa recomendaciones, catálogo, carrito ni pedidos.
+- Las fechas de nacimiento y medición se devuelven como valores de fecha en respuestas API; ambas se almacenan mediante converters AES-GCM. Los atributos personales y de salud del perfil también se cifran; los IDs/relaciones y timestamps de auditoría permanecen operativos.
+- La codificación de la clave y la protección de tráfico en despliegue son responsabilidades de configuración externa; este documento no incluye ni evalúa valores de credenciales.
+- Los cambios de tipo/longitud de columnas deben aplicarse mediante el perfil JPA de migración `perfiles-migracion` junto con `prod`, deteniendo previamente todas las instancias y respaldando la base. Tras una ejecución y migración de datos en una única instancia, se reinicia únicamente con `prod` (modo `validate`); no se agregan scripts DDL manuales.
+- RNF-06, RNF-12, RNF-16 y RNF-19 contienen métricas cuantitativas de sistema/uso. Las pruebas de código citadas verifican mecanismos y casos, no esas métricas agregadas.
+- RNF-33 es una propuesta de US-06 y no se incorporó al Plan de Calidad porque RNF-30 a RNF-32 están incompletos y requieren validación antes de decidir si se conserva esta numeración.
+- La política de tratamiento mostrada en `terminos-modal.ts`, secciones 9 y 10, debe explicar la solicitud de supresión, los datos asociados que se eliminan, la anonimización y la conservación estrictamente exigida por ley o contrato. Los plazos y categorías de conservación están pendientes de validación jurídica. Si cambia el texto, `VERSION_TERMINOS` en frontend debe coincidir con `AuthService.VERSION_TERMINOS_VIGENTE` en backend; ambos quedan en `1.1`.
+- La columna H2 `usuarios.estado` de bases locales anteriores puede tener una restricción enum que no admita `ELIMINADO`. `EstadoUsuarioSchemaMigrator` amplía esa columna al arrancar la aplicación y conserva los datos existentes; la integración debe verificar la eliminación con perfiles, mediciones y preferencias, además de la ausencia de filas asociadas después de completar la operación.

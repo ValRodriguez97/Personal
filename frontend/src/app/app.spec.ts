@@ -1,0 +1,20 @@
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+
+import { App } from './app';
+import { CarritoService } from './features/catalogoCompras/services/carrito.service';
+
+describe('App', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [provideRouter([]), { provide: CarritoService, useValue: {} }],
+    }).compileComponents();
+  });
+
+  it('crea el componente raíz con el router-outlet', () => {
+    const fixture = TestBed.createComponent(App);
+    expect(fixture.componentInstance).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('router-outlet')).not.toBeNull();
+  });
+});

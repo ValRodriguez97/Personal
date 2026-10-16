@@ -1,0 +1,144 @@
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { signal } from '@angular/core';
+import { of } from 'rxjs';
+
+import { AuthService } from '../../../../core/services/auth.service';
+import { CarritoService } from '../../../catalogoCompras/services/carrito.service';
+import { PerfilInfantil } from '../../../perfilesInfantiles/models/perfil-infantil.models';
+import { PerfilesService } from '../../../perfilesInfantiles/services/perfiles.service';
+import { VitrinaService } from '../../../vitrina/services/vitrina.service';
+import { ClienteInicio } from './cliente-inicio';
+
+const VITRINA_VACIA = { contenido: [], pagina: 0, tamano: 8, totalElementos: 0, totalPaginas: 0 };
+
+describe('ClienteInicio', () => {
+  let perfiles: PerfilInfantil[];
+
+  beforeEach(async () => {
+    perfiles = [];
+    await TestBed.configureTestingModule({
+      imports: [ClienteInicio],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AuthService,
+          useValue: {
+            usuario: () => ({ nombre: 'Laura', apellido: 'Gómez', rol: 'CLIENTE' }),
+            rol: () => 'CLIENTE',
+            rutaInicio: () => '/cliente',
+            logout: vi.fn(),
+          },
+        },
+        {
+          provide: CarritoService,
+          useValue: {
+            cantidad: () => 2,
+            items: signal([]),
+            subtotal: () => 0,
+            panelAbierto: signal(false),
+            alternarPanel: vi.fn(),
+            cerrarPanel: vi.fn(),
+          },
+        },
+        { provide: PerfilesService, useValue: { listar: () => of(perfiles) } },
+        { provide: VitrinaService, useValue: { explorar: () => of(VITRINA_VACIA) } },
+      ],
+    }).compileComponents();
+  });
+
+  it('presenta Mis hijos como un único acceso directo al listado', () => {
+    const fixture = TestBed.createComponent(ClienteInicio);
+    fixture.detectChanges();
+
+    const root: HTMLElement = fixture.nativeElement;
+    const link = root.querySelector<HTMLAnchorElement>(
+      'a.home-tile[routerLink="/cliente/hijos"]',
+    );
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute('href')).toBe('/cliente/hijos');
+    expect(link?.textContent).toContain('Mis hijos');
+    expect(fixture.nativeElement.textContent).toContain('Bienvenido de vuelta a LittleStyle');
+  });
+
+  it('abre el selector de perfiles al pulsar Cambiar perfil', () => {
+    perfiles = [
+      {
+        id: 1,
+        nombre: 'Sofía',
+        fechaNacimiento: '2021-03-10',
+        edadAnios: 5,
+        mesesRestantes: 6,
+        contextura: 'MEDIA',
+        holgura: 'REGULAR',
+        alergias: [],
+        otraAlergia: null,
+        sinAlergias: true,
+        coloresPreferidos: [],
+        estampadosPreferidos: [],
+        otroColor: null,
+        otroEstampado: null,
+        fechaCreacion: '2025-01-01T12:00:00',
+        fechaActualizacion: '2025-01-01T12:00:00',
+        ultimaMedicion: null,
+        porcentajeCompletitud: 100,
+        camposPendientes: [],
+      },
+    ];
+    const fixture = TestBed.createComponent(ClienteInicio);
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    const link = root.querySelector<HTMLAnchorElement>(
+      '.active-profile a[routerLink="/cliente/hijos"]',
+    );
+    expect(link?.textContent).toContain('Cambiar perfil');
+    expect(link?.getAttribute('href')).toBe('/cliente/hijos?modo=seleccionar');
+  });
+
+  it('enlaza el catálogo, el carrito y los pedidos sin accesos deshabilitados', () => {
+    const fixture = TestBed.createComponent(ClienteInicio);
+    fixture.detectChanges();
+
+    const root: HTMLElement = fixture.nativeElement;
+    const catalogo = root.querySelector<HTMLAnchorElement>('a.home-tile[routerLink="/cliente/catalogo"]');
+    expect(catalogo?.textContent).toContain('Catálogo');
+    expect(catalogo?.getAttribute('href')).toBe('/cliente/catalogo');
+    const carrito = root.querySelector<HTMLAnchorElement>('a.home-tile[routerLink="/cliente/carrito"]');
+    expect(carrito?.textContent).toContain('Carrito');
+    expect(carrito?.querySelector('.home-tile-badge')?.textContent?.trim()).toBe('2');
+    expect(carrito?.getAttribute('href')).toBe('/cliente/carrito');
+    const pedidos = root.querySelector<HTMLAnchorElement>('a.home-tile[routerLink="/cliente/pedidos"]');
+    expect(pedidos?.textContent).toContain('Mis pedidos');
+    expect(pedidos?.getAttribute('href')).toBe('/cliente/pedidos');
+    expect(root.querySelectorAll('.home-tile-disabled')).toHaveLength(0);
+    expect(root.textContent).not.toContain('Próximamente');
+  });
+
+  it('muestra cuatro iconos SVG decorativos', () => {
+    const fixture = TestBed.createComponent(ClienteInicio);
+    fixture.detectChanges();
+
+    const icons: NodeListOf<SVGElement> =
+      fixture.nativeElement.querySelectorAll('.home-tile svg');
+    expect(icons).toHaveLength(4);
+    for (const icon of Array.from(icons)) {
+      expect(icon.getAttribute('viewBox')).toBe('0 0 24 24');
+      expect(icon.getAttribute('fill')).toBe('none');
+      expect(icon.getAttribute('stroke')).toBe('currentColor');
+      expect(icon.getAttribute('stroke-width')).toBe('1.8');
+      expect(icon.getAttribute('stroke-linecap')).toBe('round');
+      expect(icon.getAttribute('stroke-linejoin')).toBe('round');
+      expect(icon.getAttribute('aria-hidden')).toBe('true');
+    }
+  });
+
+  it('muestra el carrusel y el pie', () => {
+    const fixture = TestBed.createComponent(ClienteInicio);
+    fixture.detectChanges();
+
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.querySelector('.hero')).not.toBeNull();
+    expect(root.querySelector('app-footer')).not.toBeNull();
+  });
+});

@@ -1,0 +1,285 @@
+<app-navbar />
+<main class="account-page">
+  <header class="account-page-header">
+    <p class="profiles-eyebrow">Cuenta personal</p>
+    <h1>Mi cuenta</h1>
+    <p>Administra tu información personal y la seguridad de tu cuenta.</p>
+  </header>
+
+  @if (cargando()) {
+    <p class="account-status" role="status">Cargando datos de la cuenta...</p>
+  } @else {
+    @if (error()) {
+      <div class="alert alert-error" role="alert">{{ error() }}</div>
+    }
+    @if (mensaje()) {
+      <div class="alert alert-info" role="status">{{ mensaje() }}</div>
+    }
+
+    <section class="account-panel">
+      <header class="account-panel-heading">
+        <div class="account-panel-title">
+          <span class="account-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="3" />
+              <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+            </svg>
+          </span>
+          <h2>Información personal</h2>
+        </div>
+        @if (!editandoDatos()) {
+          <button type="button" class="account-action" (click)="editar()">Editar</button>
+        }
+      </header>
+
+      @if (editandoDatos()) {
+        <form [formGroup]="form" (ngSubmit)="guardar()" novalidate>
+          <div class="field-row">
+            <div class="field">
+              <label for="nombre">Nombre</label>
+              <input id="nombre" formControlName="nombre" autocomplete="given-name" />
+              @if (invalido(form.controls.nombre)) { <small class="field-error">Ingresa un nombre válido (2–60 letras).</small> }
+            </div>
+            <div class="field">
+              <label for="apellido">Apellido</label>
+              <input id="apellido" formControlName="apellido" autocomplete="family-name" />
+              @if (invalido(form.controls.apellido)) { <small class="field-error">Ingresa un apellido válido (2–60 letras).</small> }
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="email">Correo electrónico</label>
+              <input id="email" type="email" formControlName="email" autocomplete="email" />
+              @if (invalido(form.controls.email)) { <small class="field-error">Ingresa un correo válido.</small> }
+            </div>
+            <div class="field">
+              <label for="telefono">Teléfono celular</label>
+              <input id="telefono" type="tel" formControlName="telefono" autocomplete="tel-national" />
+              @if (invalido(form.controls.telefono)) { <small class="field-error">Usa un celular colombiano de 10 dígitos o deja el campo vacío.</small> }
+            </div>
+          </div>
+          @if (usuario()?.rol === 'VENDEDOR') {
+            <div class="field">
+              <label for="nombreTienda">Nombre de la tienda</label>
+              <input id="nombreTienda" formControlName="nombreTienda" autocomplete="organization" />
+              @if (invalido(form.controls.nombreTienda)) { <small class="field-error">El nombre de la tienda es obligatorio y no puede superar 100 caracteres.</small> }
+            </div>
+          }
+          <div class="account-form-actions">
+            <button type="submit" class="account-action" [disabled]="guardando()">
+              {{ guardando() ? 'Guardando...' : 'Guardar cambios' }}
+            </button>
+            <button type="button" class="account-secondary-action" (click)="cancelarEdicion()">Cancelar</button>
+          </div>
+        </form>
+      } @else if (usuario(); as actual) {
+        <div class="account-identity">
+          <span class="account-avatar" aria-hidden="true">{{ actual.nombre.charAt(0).toUpperCase() }}</span>
+          <div>
+            <h3>{{ actual.nombre }} {{ actual.apellido }}</h3>
+            <p>{{ actual.rol === 'CLIENTE' ? 'Cliente' : actual.rol === 'VENDEDOR' ? 'Vendedor' : 'Administrador' }}</p>
+          </div>
+        </div>
+        <dl class="account-details">
+          <div>
+            <dt>Nombre completo</dt>
+            <dd>{{ actual.nombre }} {{ actual.apellido }}</dd>
+          </div>
+          <div>
+            <dt>Correo electrónico</dt>
+            <dd>{{ actual.email }}</dd>
+          </div>
+          <div>
+            <dt>Teléfono</dt>
+            <dd>{{ actual.telefono || 'No registrado' }}</dd>
+          </div>
+          @if (actual.rol === 'VENDEDOR') {
+            <div>
+              <dt>Nombre de la tienda</dt>
+              <dd>{{ actual.nombreTienda || 'No registrado' }}</dd>
+            </div>
+          }
+        </dl>
+      }
+    </section>
+
+    @if (usuario()?.rol === 'CLIENTE') {
+      <section class="account-panel account-address">
+        <header class="account-panel-heading">
+          <div class="account-panel-title">
+            <span class="account-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
+                <circle cx="12" cy="10" r="2.5" />
+              </svg>
+            </span>
+            <h2>Dirección de envío</h2>
+          </div>
+          @if (!editandoDireccion() && !cargandoDireccion()) {
+            <button type="button" class="account-action" (click)="editarDireccion()">
+              {{ direccionGuardada() ? 'Editar' : 'Agregar dirección' }}
+            </button>
+          }
+        </header>
+
+        @if (cargandoDireccion()) {
+          <p class="account-panel-description" role="status">Cargando dirección...</p>
+        } @else if (editandoDireccion()) {
+          <form [formGroup]="direccionForm" (ngSubmit)="guardarDireccion()" novalidate>
+            <div class="field-row">
+              <div class="field">
+                <label for="direccionDestinatario">Nombre del destinatario</label>
+                <input id="direccionDestinatario" formControlName="destinatario" autocomplete="name" />
+                @if (invalidoDireccion(direccionForm.controls.destinatario)) {
+                  <small class="field-error">Ingresa el destinatario (máximo 120 caracteres).</small>
+                }
+              </div>
+              <div class="field">
+                <label for="direccionTelefono">Celular de contacto</label>
+                <input id="direccionTelefono" type="tel" inputmode="numeric" maxlength="10" placeholder="3XXXXXXXXX" formControlName="telefono" autocomplete="tel" />
+                @if (invalidoDireccion(direccionForm.controls.telefono)) {
+                  <small class="field-error">Ingresa un celular colombiano válido: 10 dígitos e inicia por 3.</small>
+                }
+              </div>
+            </div>
+            <div class="field">
+              <label for="direccionCalle">Dirección de entrega</label>
+              <input id="direccionCalle" formControlName="direccion" autocomplete="street-address" />
+              @if (invalidoDireccion(direccionForm.controls.direccion)) {
+                <small class="field-error">Ingresa una dirección (máximo 200 caracteres).</small>
+              }
+            </div>
+            <div class="field">
+              <label for="direccionComplemento">Apartamento, piso, interior u otras indicaciones (opcional)</label>
+              <input id="direccionComplemento" formControlName="complemento" maxlength="120" autocomplete="address-line2" placeholder="Apto. 302, torre 1" />
+              @if (invalidoDireccion(direccionForm.controls.complemento)) {
+                <small class="field-error">El complemento no puede superar 120 caracteres.</small>
+              }
+            </div>
+            <div class="field-row account-address-location">
+              <div class="field">
+                <label for="direccionCodigoPostal">Código postal</label>
+                <input id="direccionCodigoPostal" inputmode="numeric" maxlength="6" autocomplete="postal-code" formControlName="codigoPostal" />
+                @if (invalidoDireccion(direccionForm.controls.codigoPostal)) {
+                  <small class="field-error">Ingresa un código postal colombiano de 6 dígitos.</small>
+                }
+              </div>
+              <div class="field">
+                <label for="direccionDepartamento">Departamento</label>
+                <select id="direccionDepartamento" formControlName="departamento" autocomplete="address-level1" (change)="cambioDepartamento($event)">
+                  <option value="">Selecciona un departamento</option>
+                  @for (departamento of departamentos; track departamento) {
+                    <option [value]="departamento">{{ departamento }}</option>
+                  }
+                </select>
+                @if (invalidoDireccion(direccionForm.controls.departamento)) {
+                  <small class="field-error">Selecciona el departamento.</small>
+                }
+              </div>
+              <div class="field">
+                <label for="direccionMunicipio">Municipio</label>
+                <select id="direccionMunicipio" formControlName="municipio" [attr.disabled]="departamentoSeleccionado() ? null : ''" autocomplete="address-level2">
+                  <option value="">Selecciona un municipio</option>
+                  @for (municipio of municipios(); track municipio) {
+                    <option [value]="municipio">{{ municipio }}</option>
+                  }
+                </select>
+                @if (invalidoDireccion(direccionForm.controls.municipio)) {
+                  <small class="field-error">Selecciona el municipio.</small>
+                }
+              </div>
+            </div>
+            <div class="account-form-actions">
+              <button type="submit" class="account-action" [disabled]="guardandoDireccion()">
+                {{ guardandoDireccion() ? 'Guardando...' : 'Guardar dirección' }}
+              </button>
+              <button type="button" class="account-secondary-action" (click)="cancelarEdicionDireccion()">
+                Cancelar
+              </button>
+            </div>
+          </form>
+        } @else if (direccionGuardada(); as direccion) {
+          <dl class="account-details">
+            <div><dt>Destinatario</dt><dd>{{ direccion.destinatario }}</dd></div>
+            <div><dt>Dirección</dt><dd>{{ direccion.direccion }}</dd></div>
+            @if (direccion.complemento) {
+              <div><dt>Complemento</dt><dd>{{ direccion.complemento }}</dd></div>
+            }
+            <div><dt>Código postal</dt><dd>{{ direccion.codigoPostal }}</dd></div>
+            <div><dt>Municipio y departamento</dt><dd>{{ direccion.municipio }}, {{ direccion.departamento }}</dd></div>
+            <div><dt>Celular de contacto</dt><dd>{{ direccion.telefono }}</dd></div>
+          </dl>
+        } @else {
+          <p class="account-panel-description">Aún no tienes una dirección de envío guardada.</p>
+        }
+      </section>
+    }
+
+    <section class="account-panel account-security">
+      <header class="account-panel-heading">
+        <div class="account-panel-title">
+          <span class="account-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4" y="10" width="16" height="11" rx="2" />
+              <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+            </svg>
+          </span>
+          <h2>Seguridad</h2>
+        </div>
+        @if (!cambiandoPassword()) {
+          <button type="button" class="account-action" (click)="cambiandoPassword.set(true)">
+            Cambiar
+          </button>
+        }
+      </header>
+      <p class="account-panel-description">Mantén tu contraseña segura y actualízala periódicamente.</p>
+      @if (cambiandoPassword()) {
+        <form [formGroup]="passwordForm" (ngSubmit)="guardarPassword()" novalidate>
+          <div class="field-row">
+            <div class="field">
+              <label for="passwordActual">Contraseña actual</label>
+              <input id="passwordActual" type="password" formControlName="passwordActual" autocomplete="current-password" />
+              @if (invalido(passwordForm.controls.passwordActual, true)) { <small class="field-error">Escribe tu contraseña actual.</small> }
+            </div>
+            <div class="field">
+              <label for="nuevaPassword">Nueva contraseña</label>
+              <input id="nuevaPassword" type="password" formControlName="nuevaPassword" autocomplete="new-password" />
+              @if (invalido(passwordForm.controls.nuevaPassword, true)) { <small class="field-error">Debe tener entre 8 y 64 caracteres, con al menos una letra y un número.</small> }
+            </div>
+          </div>
+          <div class="field">
+            <label for="confirmarNuevaPassword">Confirmar nueva contraseña</label>
+            <input id="confirmarNuevaPassword" type="password" formControlName="confirmarNuevaPassword" autocomplete="new-password" />
+            @if (invalido(passwordForm.controls.confirmarNuevaPassword, true)) { <small class="field-error">La confirmación debe coincidir con la nueva contraseña.</small> }
+          </div>
+          <div class="account-form-actions">
+            <button type="submit" class="account-action" [disabled]="guardandoPassword()">
+              {{ guardandoPassword() ? 'Actualizando...' : 'Guardar contraseña' }}
+            </button>
+            <button type="button" class="account-secondary-action" (click)="passwordForm.reset(); cambiandoPassword.set(false); passwordEnviado.set(false)">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      }
+    </section>
+
+    <section class="account-panel account-deactivation">
+      <header class="account-panel-heading">
+        <div class="account-panel-title"><h2>Eliminar cuenta</h2></div>
+      </header>
+      <p>Al confirmar, se borrarán permanentemente tus datos personales y los datos de los perfiles infantiles que hayas creado.</p>
+      @if (!confirmarDesactivacion()) {
+        <button type="button" class="account-secondary-action" (click)="confirmarDesactivacion.set(true)">
+          Eliminar mi cuenta
+        </button>
+      } @else {
+        <p role="alert">¿Deseas continuar? Se borrarán permanentemente tus datos personales y los datos de los perfiles infantiles que hayas creado.</p>
+        <button type="button" class="account-action account-action-danger" [disabled]="desactivando()" (click)="desactivar()">
+          {{ desactivando() ? 'Eliminando cuenta...' : 'Sí, eliminar mi cuenta' }}
+        </button>
+        <button type="button" class="account-secondary-action" (click)="confirmarDesactivacion.set(false)">Cancelar</button>
+      }
+    </section>
+  }
+</main>
