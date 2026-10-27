@@ -37,6 +37,7 @@ class CatalogoClienteIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
+    // Helper: registra un usuario por API real y devuelve el token Bearer para las llamadas del test
     private String registrar(String email, String rol) throws Exception {
         String tienda = "VENDEDOR".equals(rol) ? "\"Tienda Sol\"" : "null";
         String body = """
@@ -48,6 +49,7 @@ class CatalogoClienteIntegrationTest {
         return "Bearer " + JsonPath.read(json, "$.token");
     }
 
+    // Helper: crea la prenda de prueba como vendedor y devuelve su id
     private int crearPrenda(String token) throws Exception {
         String json = mockMvc.perform(post("/api/vendedor/prendas").header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON).content(PRENDA))
@@ -56,11 +58,13 @@ class CatalogoClienteIntegrationTest {
         return JsonPath.read(json, "$.id");
     }
 
+    // Recorrido completo de la vitrina: solo publicadas, y cada filtro (material, talla,
+    // edad, género, categoría) se valida contra base de datos, incluidos los casos inválidos
     @Test
     void exploraSoloPublicadasConFiltrosEnBaseDeDatos() throws Exception {
         String vendedor = registrar("vendedor-vit-" + System.nanoTime() + "@correo.com", "VENDEDOR");
         String cliente = registrar("cliente-vit-" + System.nanoTime() + "@correo.com", "CLIENTE");
-        crearPrenda(vendedor);
+        String id = String.valueOf(crearPrenda(vendedor));
 
         // Vitrina sin datos internos del vendedor
         mockMvc.perform(get("/api/cliente/catalogo").header("Authorization", cliente))
@@ -71,45 +75,57 @@ class CatalogoClienteIntegrationTest {
                 .andExpect(jsonPath("$.contenido[0].stockMinimo").doesNotExist())
                 .andExpect(jsonPath("$.contenido[0].stockTotal").doesNotExist());
 
-        // Filtros por material y talla con existencias
+        // Filtros acotados a la prenda creada: otras pruebas de integración no transaccionales
+        // dejan prendas publicadas en la H2 compartida
         mockMvc.perform(get("/api/cliente/catalogo").header("Authorization", cliente)
+                        .param("ids", id)
                         .param("material", "ALGODON"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElementos").value(1));
         mockMvc.perform(get("/api/cliente/catalogo").header("Authorization", cliente)
+                        .param("ids", id)
                         .param("material", "ALGODON,POLIESTER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElementos").value(1));
         mockMvc.perform(get("/api/cliente/catalogo").header("Authorization", cliente)
+                        .param("ids", id)
                         .param("material", "CUERO"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElementos").value(0));
         mockMvc.perform(get("/api/cliente/catalogo").header("Authorization", cliente)
+                        .param("ids", id)
                         .param("talla", "4"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElementos").value(1));
         // Filtro por edad en meses sobre el rango declarado (nulo = coincide)
         mockMvc.perform(get("/api/cliente/catalogo").header("Authorization", cliente)
+                        .param("ids", id)
                         .param("edadMeses", "36"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElementos").value(1));
         mockMvc.perform(get("/api/cliente/catalogo").header("Authorization", cliente)
+                        .param("ids", id)
                         .param("edadMeses", "200"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElementos").value(0));
         mockMvc.perform(get("/api/cliente/catalogo").header("Authorization", cliente)
+                        .param("ids", id)
                         .param("edadMeses", "-1"))
                 .andExpect(status().isBadRequest());
         // Sin género declarado la prenda aplica a todos
         mockMvc.perform(get("/api/cliente/catalogo").header("Authorization", cliente)
+                        .param("ids", id)
                         .param("genero", "NINA"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElementos").value(1));
         mockMvc.perform(get("/api/cliente/catalogo").header("Authorization", cliente)
+                        .param("ids", id)
                         .param("categoria", "ROPA"))
                 .andExpect(status().isBadRequest());
     }
 
+    // La ficha del producto expone stock por talla y rangos de edad, pero jamás el stock mínimo
+    // del vendedor; además, al ocultar la prenda esta deja de verse para el cliente
     @Test
     void detalleMuestraExistenciasPorTallaSinExponerElMinimoYOcultaInactivas() throws Exception {
         String vendedor = registrar("vendedor-det-" + System.nanoTime() + "@correo.com", "VENDEDOR");
@@ -135,6 +151,7 @@ class CatalogoClienteIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    // La vitrina es exclusiva del rol CLIENTE: un vendedor logueado recibe 403 y sin token 401
     @Test
     void vitrinaExigeRolCliente() throws Exception {
         String vendedor = registrar("vendedor-rol-" + System.nanoTime() + "@correo.com", "VENDEDOR");

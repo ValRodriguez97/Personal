@@ -1,5 +1,6 @@
 import { ColorPreferido, Estampado } from '../../perfilesInfantiles/models/perfil-infantil.models';
 
+/** Categorías aceptadas para clasificar prendas. */
 export type CategoriaPrenda =
   | 'VESTIDOS'
   | 'PANTALONES'
@@ -13,6 +14,7 @@ export type CategoriaPrenda =
   | 'PIJAMAS'
   | 'ACCESORIOS';
 
+/** Materiales textiles reconocidos en la composición de una prenda. */
 export type MaterialTextil =
   | 'ALGODON'
   | 'POLIESTER'
@@ -25,15 +27,20 @@ export type MaterialTextil =
   | 'LATEX'
   | 'OTRO';
 
+/** Estados de publicación de una prenda. */
 export type EstadoPrenda = 'ACTIVA' | 'INACTIVA';
+/** Clasificación derivada del nivel de stock. */
 export type NivelStock = 'DISPONIBLE' | 'STOCK_BAJO' | 'AGOTADO';
+/** Opciones de género asociables a una prenda. */
 export type GeneroPrenda = 'NINO' | 'NINA' | 'UNISEX';
 
+/** Material textil y porcentaje que integran la composición de una prenda. */
 export interface Componente {
   material: MaterialTextil;
   porcentaje: number;
 }
 
+/** Talla con rangos de medidas y stock asociado. */
 export interface Talla {
   id: number;
   talla: string;
@@ -41,16 +48,21 @@ export interface Talla {
   estaturaMaxCm: number;
   pesoMinKg: number;
   pesoMaxKg: number;
+  /** Edad en meses que cubre la talla; nula si no se declara. */
+  edadMinMeses?: number | null;
+  edadMaxMeses?: number | null;
   stock: number;
   stockMinimo?: number | null;
 }
 
+/** Imagen asociada a una prenda y su orden de presentación. */
 export interface ImagenPrenda {
   id: number;
   url: string;
   orden: number;
 }
 
+/** Ficha de producto con atributos textiles, tallas, stock e imágenes. */
 export interface Prenda {
   id: number;
   nombre: string;
@@ -76,18 +88,23 @@ export interface Prenda {
   fechaActualizacion: string;
 }
 
+/** Datos de tallas enviados al crear o actualizar una prenda. */
 export interface TallaRequest {
   talla: string;
   estaturaMinCm: number;
   estaturaMaxCm: number;
   pesoMinKg: number;
   pesoMaxKg: number;
+  /** Edad en meses que cubre la talla; nula si no se declara. */
+  edadMinMeses?: number | null;
+  edadMaxMeses?: number | null;
   /** Solo se usa para tallas nuevas; el stock de las existentes se cambia en el inventario. */
   stock: number | null;
   /** Mínimo de alerta de esta talla; nulo si no alerta. */
   stockMinimo?: number | null;
 }
 
+/** Datos de producto enviados para crear o actualizar una prenda. */
 export interface PrendaRequest {
   nombre: string;
   categoria: CategoriaPrenda;
@@ -106,6 +123,7 @@ export interface PrendaRequest {
   tallas: TallaRequest[];
 }
 
+/** Resumen de stock de una prenda para el inventario. */
 export interface InventarioItem {
   prendaId: number;
   nombre: string;
@@ -117,10 +135,12 @@ export interface InventarioItem {
   tallas: { talla: string; stock: number; stockMinimo: number | null }[];
 }
 
+/** Existencias y mínimos solicitados para actualizar el inventario. */
 export interface ActualizarStockRequest {
   tallas: { talla: string; stock: number; stockMinimo: number | null }[];
 }
 
+/** Alerta de inventario emitida para una prenda o talla. */
 export interface AlertaInventario {
   id: number;
   prendaId: number;

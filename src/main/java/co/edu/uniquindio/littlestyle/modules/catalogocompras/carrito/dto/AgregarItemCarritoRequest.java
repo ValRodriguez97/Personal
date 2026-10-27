@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
+/** Prenda, talla y cantidad que se agregan al carrito. */
 public record AgregarItemCarritoRequest(
         @NotNull(message = "La prenda es obligatoria")
         @Positive(message = "El identificador de la prenda debe ser positivo")
@@ -20,6 +21,13 @@ public record AgregarItemCarritoRequest(
          * adopción de la recomendación). Opcional; no se valida contra stock.
          */
         @Size(max = 10, message = "La talla sugerida no puede superar 10 caracteres")
-        String tallaSugerida
+        String tallaSugerida,
+        /**
+         * Perfil infantil activo con el que se agrega. Opcional: si llega, se
+         * evalúan las alergias graves solo contra ese perfil; si no llega, se
+         * evalúan contra todos los perfiles del cliente (por defecto seguro).
+         */
+        @Positive(message = "El identificador del perfil infantil debe ser positivo")
+        Long perfilInfantilId
 ) {
 }

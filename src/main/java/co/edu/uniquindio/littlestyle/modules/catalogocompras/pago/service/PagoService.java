@@ -1,7 +1,5 @@
 package co.edu.uniquindio.littlestyle.modules.catalogocompras.pago.service;
 
-import co.edu.uniquindio.littlestyle.config.CheckoutProperties;
-import co.edu.uniquindio.littlestyle.config.PagoProperties;
 import co.edu.uniquindio.littlestyle.config.WompiProperties;
 import co.edu.uniquindio.littlestyle.config.security.AuthenticatedUser;
 import co.edu.uniquindio.littlestyle.modules.auth.model.Usuario;
@@ -53,8 +51,9 @@ import java.util.stream.Collectors;
 
 /**
  * Coordina el pago de pedidos con Wompi (US-11): genera los datos firmados para el Widget,
- * procesa los eventos verificados del webhook y la consulta directa a la API, y conecta la
- * aprobación con {@link PedidoPagoService}, que descuenta el stock de forma atómica (US-10).
+ * procesa los eventos verificados del webhook y la consulta directa a la API, permite al
+ * cliente anular un pago en CREADA, y conecta la aprobación con {@link PedidoPagoService},
+ * que descuenta el stock de forma atómica (US-10).
  */
 @Slf4j
 @Service
@@ -72,13 +71,16 @@ public class PagoService {
     private final FirmaWompiService firmaWompiService;
     private final WompiClient wompiClient;
     private final WompiProperties wompiProperties;
-    private final CheckoutProperties checkoutProperties;
-    private final PagoProperties pagoProperties;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
     private final ApplicationEventPublisher eventos;
     private final SecureRandom random = new SecureRandom();
 
+    /**
+     * Inicia el pago de la compra actual. Reutiliza el intento con la misma clave de idempotencia o el que
+     * sigue en curso para la misma compra, rechaza con 409 si hay otro pago en curso para una compra distinta
+     * y, si no, guarda una transacción {@code CREADA} con el snapshot del checkout.
+     */
     @Transactional
     public InicioPagoResponse iniciar(CrearPedidoRequest request, String claveIdempotencia) {
         if (!wompiProperties.pagosConfigurados()) {
@@ -125,53 +127,28 @@ public class PagoService {
         return respuestaInicio(transaccion, usuario);
     }
 
+    /**
+     * Anula un pago del cliente que aún está en CREADA: suelta la compra y deja al cliente
+     * iniciar otra sin esperar confirmación de Wompi (idempotente si ya está ANULADA).
+     * Si Wompi más tarde aprueba un cobro de esta referencia, el evento pasa a
+     * REEMBOLSO_PENDIENTE en {@link #aplicar} para devolver el dinero.
+     */
     @Transactional
-    public InicioPagoResponse iniciar(Long pedidoId) {
-        if (!wompiProperties.pagosConfigurados()) {
-            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "La pasarela de pagos no está disponible en este momento");
-        }
+    public ResultadoPagoResponse cancelar(String referencia) {
         AuthenticatedUser usuario = usuarioActual();
-        Pedido pedido = pedidoRepository.bloquearPorId(pedidoId)
-                .filter(encontrado -> perteneceA(encontrado, usuario))
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Pedido no encontrado"));
-        if (pedido.getEstado() != EstadoPedido.PENDIENTE_PAGO) {
-            throw new BusinessException(HttpStatus.CONFLICT, "El pedido no está pendiente de pago");
-        }
-        if (pedidoVencido(pedido)) {
-            throw new BusinessException(HttpStatus.CONFLICT,
-                    "El plazo para pagar este pedido venció. Vuelve a agregar las prendas al carrito.");
-        }
-        if (transaccionPagoRepository.existsByPedidoIdAndEstado(pedidoId, EstadoTransaccionPago.PENDIENTE)) {
-            throw new BusinessException(HttpStatus.CONFLICT,
-                    "Ya hay un pago en proceso para este pedido. Espera su confirmación antes de intentarlo de nuevo.");
-        }
-        if (transaccionPagoRepository.countByPedidoId(pedidoId) >= pagoProperties.maxIntentosPorPedido()) {
-            throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS,
-                    "Alcanzaste el máximo de " + pagoProperties.maxIntentosPorPedido()
-                            + " intentos de pago para este pedido. Vuelve a crear el pedido desde tu carrito.");
-        }
-
-        long montoCentavos = centavos(pedido.getTotal());
-        String moneda = wompiProperties.moneda();
-        String referencia = generarReferencia(pedidoId);
-        LocalDateTime ahora = LocalDateTime.now(clock);
-        transaccionPagoRepository.save(TransaccionPago.builder()
-                .cliente(pedido.getCliente())
-                .pedido(pedido)
-                .referencia(referencia)
-                .montoCentavos(montoCentavos)
-                .moneda(moneda)
-                .estado(EstadoTransaccionPago.CREADA)
-                .fechaCreacion(ahora)
-                .fechaActualizacion(ahora)
-                .build());
-
-        return new InicioPagoResponse(pedidoId, referencia, montoCentavos, moneda,
-                wompiProperties.llavePublica(),
-                firmaWompiService.firmaIntegridad(referencia, montoCentavos, moneda),
-                wompiProperties.urlRedireccionPublica(), usuario.email(), pedido.getDestinatario(),
-                pedido.getTelefono());
+        return transaccionPagoRepository.bloquearPorReferencia(referencia)
+                .filter(encontrada -> perteneceA(encontrada, usuario))
+                .map(transaccion -> {
+                    if (transaccion.getEstado().anulablePorCliente()) {
+                        transaccion.setEstado(EstadoTransaccionPago.ANULADA);
+                        transaccion.setFechaActualizacion(LocalDateTime.now(clock));
+                    } else if (transaccion.getEstado() != EstadoTransaccionPago.ANULADA) {
+                        throw new BusinessException(HttpStatus.CONFLICT,
+                                "Este pago ya no se puede cancelar");
+                    }
+                    return respuesta(transaccion);
+                })
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Pago no encontrado"));
     }
 
     /**
@@ -209,6 +186,9 @@ public class PagoService {
                     evento == null ? null : evento.event(), evento == null ? null : evento.timestampTexto());
             throw new BusinessException(HttpStatus.UNAUTHORIZED, "Firma del evento inválida o vencida");
         }
+        // Junto con el warn de arriba da la métrica de RNF-07: válidos / (válidos + rechazados)
+        log.info("Evento de Wompi con firma válida (evento={}, timestamp={})",
+                evento.event(), evento.timestampTexto());
     }
 
     /** Aplica un evento ya validado con {@link #validarEvento}. Es idempotente ante reenvíos. */
@@ -234,6 +214,7 @@ public class PagoService {
                                 transaccionWompi.referencia()));
     }
 
+    /** Estado de un pago del cliente autenticado; 404 si no existe o es de otro cliente. */
     @Transactional(readOnly = true)
     public ResultadoPagoResponse consultarPorReferencia(String referencia) {
         AuthenticatedUser usuario = usuarioActual();
@@ -243,8 +224,25 @@ public class PagoService {
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Pago no encontrado"));
     }
 
+    /**
+     * Aplica el estado reportado por Wompi. Ignora transacciones ya finalizadas (salvo un cobro aprobado
+     * sobre una anulada, que queda para reembolso), marca error si el monto o la moneda no coinciden,
+     * confirma el pedido si se aprobó y avisa al cliente si se rechazó.
+     */
     private void aplicar(TransaccionPago transaccion, TransaccionWompi transaccionWompi) {
-        if (transaccion.getEstado().esFinal()) {
+        EstadoTransaccionPago estadoAnterior = transaccion.getEstado();
+        if (estadoAnterior.esFinal()) {
+            // El cliente anuló el pago, pero Wompi aprobó un cobro tardío: hay que devolverle
+            // el dinero. Cualquier otro estado final se ignora (evento idempotente u tardío).
+            if (estadoAnterior == EstadoTransaccionPago.ANULADA
+                    && EstadoTransaccionPago.desdeWompi(transaccionWompi.estado()) == EstadoTransaccionPago.APROBADA) {
+                log.warn("Cobro aprobado {} sobre una transacción anulada; requiere reembolso "
+                                + "(informado {} {}, esperado {} {})",
+                        transaccion.getReferencia(), transaccionWompi.montoCentavos(),
+                        transaccionWompi.moneda(), transaccion.getMontoCentavos(), transaccion.getMoneda());
+                transaccion.marcarReembolsoPendiente(MotivoReembolso.PAGO_ANULADO, List.of());
+                transaccion.setFechaActualizacion(LocalDateTime.now(clock));
+            }
             return;
         }
         if (!Objects.equals(transaccionWompi.montoCentavos(), transaccion.getMontoCentavos())
@@ -272,6 +270,10 @@ public class PagoService {
         transaccion.setFechaActualizacion(LocalDateTime.now(clock));
     }
 
+    /**
+     * Crea el pedido desde el snapshot o confirma el existente. Si el pedido ya no está pendiente de pago, la
+     * transacción queda para reembolso.
+     */
     private void confirmarPedido(TransaccionPago transaccion) {
         if (transaccion.getPedido() == null) {
             ResultadoConfirmacionPago resultado = procesadorCheckoutPagadoService.confirmar(transaccion);
@@ -292,6 +294,7 @@ public class PagoService {
         procesarResultadoConfirmacion(transaccion, resultado);
     }
 
+    /** Marca la transacción como aprobada o, si faltó stock, para reembolso con las prendas agotadas. */
     private void procesarResultadoConfirmacion(TransaccionPago transaccion, ResultadoConfirmacionPago resultado) {
         Long pedidoId = transaccion.getPedido().getId();
         switch (resultado.estado()) {
@@ -305,14 +308,10 @@ public class PagoService {
                                         linea.talla(), linea.cantidadSolicitada(), linea.stockDisponible()))
                                 .toList());
             }
-            case PEDIDO_VENCIDO -> {
-                log.warn("Pago aprobado {} para el pedido vencido {}; requiere reembolso",
-                        transaccion.getReferencia(), pedidoId);
-                transaccion.marcarReembolsoPendiente(MotivoReembolso.PEDIDO_VENCIDO, List.of());
-            }
         }
     }
 
+    /** Arma el resultado del pago con datos del pedido o, si aún no existe, del snapshot. */
     private ResultadoPagoResponse respuesta(TransaccionPago transaccion) {
         Pedido pedido = transaccion.getPedido();
         PedidoPagoSnapshot snapshot = pedido == null ? deserializar(transaccion.getSnapshotCheckout()) : null;
@@ -351,11 +350,7 @@ public class PagoService {
                 disponibles);
     }
 
-    private boolean pedidoVencido(Pedido pedido) {
-        LocalDateTime limite = LocalDateTime.now(clock).minus(checkoutProperties.tiempoExpiracionPedido());
-        return !pedido.getFechaCreacion().isAfter(limite);
-    }
-
+    /** Indica si la transacción (o su pedido) es del usuario. */
     private boolean perteneceA(TransaccionPago transaccion, AuthenticatedUser usuario) {
         if (transaccion.getCliente() != null) {
             return usuario.id().equals(transaccion.getCliente().getId());
@@ -365,27 +360,22 @@ public class PagoService {
                 && usuario.id().equals(pedido.getCliente().getId());
     }
 
-    private boolean perteneceA(Pedido pedido, AuthenticatedUser usuario) {
-        return pedido.getCliente() != null && usuario.id().equals(pedido.getCliente().getId());
-    }
-
+    /** Usuario autenticado; 401 si no hay sesión. */
     private AuthenticatedUser usuarioActual() {
         return SecurityUtils.usuarioActual()
                 .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "Usuario no autenticado"));
     }
 
-    private String generarReferencia(Long pedidoId) {
-        byte[] aleatorio = new byte[5];
-        random.nextBytes(aleatorio);
-        return "LS-" + pedidoId + "-" + HexFormat.of().withUpperCase().formatHex(aleatorio);
-    }
-
+    /** Referencia única para Wompi: {@code LS-C<cliente>-<10 hex aleatorios>}. */
     private String generarReferenciaCheckout(Long clienteId) {
         byte[] aleatorio = new byte[5];
         random.nextBytes(aleatorio);
         return "LS-C" + clienteId + "-" + HexFormat.of().withUpperCase().formatHex(aleatorio);
     }
 
+    /**
+     * Datos para abrir el Widget: referencia, monto, llave pública, firma de integridad y datos del cliente.
+     */
     private InicioPagoResponse respuestaInicio(TransaccionPago transaccion, AuthenticatedUser usuario) {
         return new InicioPagoResponse(transaccion.getPedido() == null ? null : transaccion.getPedido().getId(),
                 transaccion.getReferencia(), transaccion.getMontoCentavos(), transaccion.getMoneda(),
@@ -396,11 +386,13 @@ public class PagoService {
                 transaccion.getPedido() == null ? telefonoSnapshot(transaccion) : transaccion.getPedido().getTelefono());
     }
 
+    /** Teléfono de la dirección de envío guardada en el snapshot. */
     private String telefonoSnapshot(TransaccionPago transaccion) {
         PedidoPagoSnapshot snapshot = deserializar(transaccion.getSnapshotCheckout());
         return snapshot == null ? null : snapshot.direccion().telefono();
     }
 
+    /** Convierte el snapshot del checkout a JSON. */
     private String serializar(PedidoPagoSnapshot snapshot) {
         try {
             return objectMapper.writeValueAsString(snapshot);
@@ -409,6 +401,7 @@ public class PagoService {
         }
     }
 
+    /** Lee el snapshot del checkout desde JSON; {@code null} si no hay. */
     private PedidoPagoSnapshot deserializar(String snapshot) {
         if (snapshot == null) {
             return null;
@@ -420,6 +413,7 @@ public class PagoService {
         }
     }
 
+    /** Clave de idempotencia sin espacios, o {@code null}; máximo 64 caracteres. */
     private static String normalizarClave(String clave) {
         if (clave == null || clave.isBlank()) {
             return null;
@@ -431,10 +425,12 @@ public class PagoService {
         return clave.trim();
     }
 
+    /** Convierte pesos a centavos redondeando a dos decimales. */
     static long centavos(BigDecimal valor) {
         return valor.setScale(2, RoundingMode.HALF_UP).movePointRight(2).longValueExact();
     }
 
+    /** Llave prenda y talla para comparar líneas. */
     private static String clave(Long prendaId, String talla) {
         return prendaId + "|" + talla.trim().toUpperCase(Locale.ROOT);
     }

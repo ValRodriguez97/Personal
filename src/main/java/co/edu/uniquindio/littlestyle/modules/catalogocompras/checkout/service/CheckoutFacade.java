@@ -10,10 +10,7 @@ import co.edu.uniquindio.littlestyle.modules.catalogocompras.checkout.dto.Direcc
 import co.edu.uniquindio.littlestyle.modules.catalogocompras.checkout.dto.LineaResumenCheckoutResponse;
 import co.edu.uniquindio.littlestyle.modules.catalogocompras.checkout.dto.ResumenCheckoutRequest;
 import co.edu.uniquindio.littlestyle.modules.catalogocompras.checkout.dto.ResumenCheckoutResponse;
-import co.edu.uniquindio.littlestyle.modules.catalogocompras.recomendacion.model.ComponenteMaterial;
-import co.edu.uniquindio.littlestyle.modules.catalogocompras.recomendacion.model.PrendaRecomendable;
-import co.edu.uniquindio.littlestyle.modules.catalogocompras.recomendacion.model.TablaTallas;
-import co.edu.uniquindio.littlestyle.modules.catalogocompras.recomendacion.strategy.FiltroAlergia;
+import co.edu.uniquindio.littlestyle.modules.catalogocompras.recomendacion.service.ValidadorAlergiaCompra;
 import co.edu.uniquindio.littlestyle.modules.perfilesinfantiles.dto.PerfilResponse;
 import co.edu.uniquindio.littlestyle.modules.perfilesinfantiles.model.AlergiaTextil;
 import co.edu.uniquindio.littlestyle.modules.perfilesinfantiles.service.PerfilInfantilService;
@@ -41,10 +38,15 @@ public class CheckoutFacade {
 
     private final PrendaRepository prendaRepository;
     private final PerfilInfantilService perfilInfantilService;
-    private final FiltroAlergia filtroAlergia;
+    private final ValidadorAlergiaCompra validadorAlergiaCompra;
     private final DisponibilidadStockService disponibilidadStockService;
     private final TarifaEnvioService tarifaEnvioService;
 
+    /**
+     * Calcula el resumen de compra para el perfil y la dirección dados: valida que cada prenda esté
+     * publicada, que no choque con las alergias graves del perfil y que haya stock para la cantidad total
+     * pedida por talla; luego suma subtotales y el envío según el destino.
+     */
     @Transactional(readOnly = true)
     public ResumenCheckoutResponse calcularResumen(ResumenCheckoutRequest request,
                                                     List<ItemResumenCheckoutRequest> items) {
@@ -87,6 +89,7 @@ public class CheckoutFacade {
                 subtotal.add(costoEnvio));
     }
 
+    /** Exige un perfil infantil válido y la dirección de entrega. */
     private void validarPerfil(ResumenCheckoutRequest request) {
         if (request == null || request.perfilInfantilId() == null || request.perfilInfantilId() <= 0) {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
@@ -98,6 +101,7 @@ public class CheckoutFacade {
         }
     }
 
+    /** Rechaza el carrito vacío (409) o con líneas incompletas (400). */
     private void validarItems(List<ItemResumenCheckoutRequest> items) {
         if (items == null || items.isEmpty()) {
             throw new BusinessException(HttpStatus.CONFLICT, "El carrito está vacío", "items");
@@ -111,25 +115,12 @@ public class CheckoutFacade {
         }
     }
 
+    /** Rechaza la prenda si contiene un material excluido por las alergias del perfil. */
     private void validarCompatibilidad(Long perfilId, Set<AlergiaTextil> alergias, Prenda prenda) {
-        PrendaRecomendable prendaEvaluable = new PrendaRecomendable(
-                prenda.getId(), prenda.getNombre(), prenda.getCategoria().name(), null,
-                prenda.getPrecio(), null, new TablaTallas(List.of()),
-                prenda.getComposicion().stream()
-                        .map(componente -> new ComponenteMaterial(componente.getMaterial(),
-                                componente.getPorcentaje()))
-                        .toList(),
-                prenda.isTintesSinteticos(), prenda.isBrochesMetalicos(),
-                prenda.isContieneNiquel(), prenda.isTratamientoFormaldehido(), Set.of(),
-                prenda.getEstampado(), Map.of());
-        if (filtroAlergia.evaluar(alergias, prendaEvaluable).excluye()) {
-            throw new BusinessException(HttpStatus.UNPROCESSABLE_ENTITY,
-                    "La prenda " + prenda.getNombre()
-                            + " no es compatible con las alergias del perfil infantil " + perfilId,
-                    "items");
-        }
+        validadorAlergiaCompra.validarExcluida(alergias, prenda, perfilId);
     }
 
+    /** Valida el stock de cada talla contra la suma de lo pedido en todas sus líneas. */
     private void validarStockDisponible(Map<Long, Prenda> prendas,
                                         Map<ClaveTalla, Long> cantidadesSolicitadas) {
         cantidadesSolicitadas.forEach((clave, cantidad) -> {
@@ -140,10 +131,12 @@ public class CheckoutFacade {
         });
     }
 
+    /** Talla sin espacios y en mayúsculas. */
     private String normalizarTalla(String talla) {
         return talla.trim().toUpperCase(Locale.ROOT);
     }
 
+    /** Identifica una talla de una prenda. */
     private record ClaveTalla(Long prendaId, String talla) {
     }
 }
