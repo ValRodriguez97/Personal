@@ -43,6 +43,7 @@ public class AdminUsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final AuditoriaService auditoriaService;
+    private final IncidenciaService incidenciaService;
     private final ApplicationEventPublisher eventPublisher;
 
     /** Bandeja paginada de cuentas con filtros opcionales por rol, estado y texto libre. */
@@ -82,6 +83,9 @@ public class AdminUsuarioService {
             EstadoUsuario anterior = usuario.getEstado();
             usuario.setEstado(destino);
             usuarioRepository.save(usuario);
+            if (destino == EstadoUsuario.SUSPENDIDO || destino == EstadoUsuario.BLOQUEADO) {
+                incidenciaService.abrirApelacionAutomatica(id, destino, motivoValidado);
+            }
             auditoriaService.registrar(accionDe(destino), TipoEntidad.USUARIO,
                     String.valueOf(id), anterior.name(), destino.name(), motivoValidado);
             eventPublisher.publishEvent(new CuentaEstadoCambiadaEvent(id, anterior, destino, motivoValidado));

@@ -16,12 +16,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.Optional;
 
@@ -66,7 +69,7 @@ public class AuditoriaService {
                                        String valorAnterior, String valorNuevo, String motivo) {
         AuthenticatedUser admin = adminActual();
         RegistroAuditoria registro = registroConHash(RegistroAuditoria.builder()
-                .fechaHora(Instant.now())
+                .fechaHora(Instant.now().truncatedTo(ChronoUnit.MICROS))
                 .adminId(admin.id())
                 .adminEmail(admin.email())
                 .rol(admin.rol().name())
@@ -76,7 +79,7 @@ public class AuditoriaService {
                 .valorAnterior(valorAnterior)
                 .valorNuevo(valorNuevo)
                 .motivo(motivo)
-                .ipOrigen(null)
+                .ipOrigen(ipOrigenActual())
                 .resultado(ResultadoAuditoria.EXITO)
                 .hashAnterior(hashAnterior())
                 .build());
@@ -92,7 +95,7 @@ public class AuditoriaService {
                                                      String entidadId, String motivo) {
         AuthenticatedUser admin = adminActual();
         RegistroAuditoria registro = registroConHash(RegistroAuditoria.builder()
-                .fechaHora(Instant.now())
+                .fechaHora(Instant.now().truncatedTo(ChronoUnit.MICROS))
                 .adminId(admin.id())
                 .adminEmail(admin.email())
                 .rol(admin.rol().name())
@@ -100,7 +103,7 @@ public class AuditoriaService {
                 .tipoEntidad(tipoEntidad)
                 .entidadId(entidadId)
                 .motivo(motivo)
-                .ipOrigen(null)
+                .ipOrigen(ipOrigenActual())
                 .resultado(ResultadoAuditoria.FALLO)
                 .hashAnterior(hashAnterior())
                 .build());
@@ -211,6 +214,14 @@ public class AuditoriaService {
                     "La auditoria solo se escribe desde acciones del rol ADMINISTRADOR");
         }
         return admin;
+    }
+
+    /** IP del cliente de la petición HTTP actual, igual que en el flujo de login. */
+    private String ipOrigenActual() {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
+            return attributes.getRequest().getRemoteAddr();
+        }
+        return null;
     }
 
 }

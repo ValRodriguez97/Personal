@@ -12,7 +12,12 @@ import co.edu.uniquindio.littlestyle.modules.auth.model.Rol;
 import co.edu.uniquindio.littlestyle.modules.auth.model.Usuario;
 import co.edu.uniquindio.littlestyle.modules.auth.repository.UsuarioRepository;
 import co.edu.uniquindio.littlestyle.modules.catalogocompras.recomendacion.port.CatalogoRecomendacionPort;
+import co.edu.uniquindio.littlestyle.modules.admin.model.EstadoIncidencia;
+import co.edu.uniquindio.littlestyle.modules.admin.model.TipoIncidencia;
+import co.edu.uniquindio.littlestyle.modules.admin.repository.IncidenciaRepository;
+import co.edu.uniquindio.littlestyle.modules.admin.service.AuditoriaService;
 import com.jayway.jsonpath.JsonPath;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,7 +25,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -58,6 +65,12 @@ class US14AdminIntegrationTest {
     private CatalogoRecomendacionPort catalogoRecomendacion;
     @Autowired
     private RegistroAuditoriaRepository registroAuditoriaRepository;
+    @Autowired
+    private IncidenciaRepository incidenciaRepository;
+    @Autowired
+    private AuditoriaService auditoriaService;
+    @Autowired
+    private EntityManager entityManager;
 
     @Test
     void suspensionYDesactivacionSeReflejanEnCatalogoRecomendacionesYAuditoria() throws Exception {
@@ -202,6 +215,43 @@ class US14AdminIntegrationTest {
                         .content("{\"estado\":\"BLOQUEADO\",\"motivo\":\" \"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errores.motivo").exists());
+    }
+
+    @Test
+    @Transactional
+    void persisteHashConPrecisionDeBaseDeDatosYAbreApelacionEnLaTransaccion() throws Exception {
+        String sufijo = UUID.randomUUID().toString();
+        Usuario admin = crearAdmin("admin-auditoria-" + sufijo + "@correo.com");
+        String vendedor = registrar("vendedor-apelacion-" + sufijo + "@correo.com",
+                "VENDEDOR", "Tienda apelación");
+        Long vendedorId = usuarioRepository.findByEmail("vendedor-apelacion-" + sufijo + "@correo.com")
+                .orElseThrow().getId();
+
+        mockMvc.perform(put("/api/admin/usuarios/{id}/estado", vendedorId)
+                        .header("Authorization", token(admin))
+                        .with(request -> {
+                            request.setRemoteAddr("203.0.113.17");
+                            return request;
+                        })
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"estado":"SUSPENDIDO",
+                                 "motivo":"Incumplimiento confirmado de las políticas de publicación"}
+                                """))
+                .andExpect(status().isOk());
+
+        assertThat(incidenciaRepository.existsByReportanteIdAndTipoAndEstadoIn(
+                vendedorId, TipoIncidencia.APELACION_SUSPENSION,
+                List.of(EstadoIncidencia.ABIERTA, EstadoIncidencia.EN_REVISION))).isTrue();
+
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(registroAuditoriaRepository.findAllByOrderByIdAsc())
+                .filteredOn(registro -> registro.getAccion() == AccionAuditoria.SUSPENDER_USUARIO
+                        && String.valueOf(vendedorId).equals(registro.getEntidadId()))
+                .anySatisfy(registro -> assertThat(registro.getIpOrigen()).isEqualTo("203.0.113.17"));
+        assertThat(auditoriaService.verificarIntegridad().integra()).isTrue();
     }
 
     private String registrar(String email, String rol, String tienda) throws Exception {

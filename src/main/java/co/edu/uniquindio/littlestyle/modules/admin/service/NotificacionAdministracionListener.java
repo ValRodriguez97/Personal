@@ -1,6 +1,5 @@
 package co.edu.uniquindio.littlestyle.modules.admin.service;
 
-import co.edu.uniquindio.littlestyle.modules.admin.model.TipoIncidencia;
 import co.edu.uniquindio.littlestyle.modules.auth.model.EstadoUsuario;
 import co.edu.uniquindio.littlestyle.modules.auth.model.Usuario;
 import co.edu.uniquindio.littlestyle.modules.auth.repository.UsuarioRepository;
@@ -10,7 +9,6 @@ import co.edu.uniquindio.littlestyle.shared.correo.CorreoService;
 import co.edu.uniquindio.littlestyle.shared.event.CuentaEstadoCambiadaEvent;
 import co.edu.uniquindio.littlestyle.shared.event.PrendaModeradaEvent;
 import co.edu.uniquindio.littlestyle.shared.event.IncidenciaCerradaEvent;
-import co.edu.uniquindio.littlestyle.shared.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -19,10 +17,9 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
- * Reacciones post-commit de la administracion (US-14): correos al usuario y apertura de la apelacion
- * automatica cuando se suspende o bloquea una cuenta. Todos los pasos son {@code AFTER_COMMIT} y
- * asincronos, de modo que no tocan la transaccion administrativa; un correo que falla se registra y no
- * rompe la accion. Los datos se releen en contexto nuevo para evitar perezosos desanclados.
+ * Notificaciones post-commit de la administracion (US-14). La apelacion automatica se crea durante la
+ * transaccion del cambio de estado; este listener deja asincrono unicamente el correo. Los datos se
+ * releen en contexto nuevo para evitar perezosos desanclados.
  */
 @Slf4j
 @Service
@@ -31,10 +28,9 @@ public class NotificacionAdministracionListener {
 
     private final UsuarioRepository usuarioRepository;
     private final PrendaRepository prendaRepository;
-    private final IncidenciaService incidenciaService;
     private final CorreoService correoService;
 
-    /** Correo del cambio de cuenta y, si suspende o bloquea, apelacion automatica. */
+    /** Correo del cambio de cuenta. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Async
     public void alCambiarEstadoCuenta(CuentaEstadoCambiadaEvent evento) {
@@ -47,27 +43,19 @@ public class NotificacionAdministracionListener {
                 case SUSPENDIDO -> {
                     correoService.enviarEstadoCuenta(usuario.getEmail(), usuario.getNombre(),
                             "suspendida", evento.motivo());
-                    abrirApelacion(evento);
                 }
                 case BLOQUEADO -> {
                     correoService.enviarEstadoCuenta(usuario.getEmail(), usuario.getNombre(),
                             "bloqueada", evento.motivo());
-                    abrirApelacion(evento);
                 }
                 case ACTIVO -> correoService.enviarEstadoCuenta(usuario.getEmail(), usuario.getNombre(),
                         "habilitada de nuevo", evento.motivo());
                 default -> log.info("Cambio de cuenta {} no genera aviso", evento.estadoNuevo());
             }
-        } catch (BusinessException | IllegalStateException ex) {
-            log.error("Apelacion automatica no pudo abrirse para la cuenta {}: {}",
-                    evento.usuarioId(), ex.getMessage());
+        } catch (RuntimeException ex) {
+            log.error("No se pudo enviar el correo por el cambio de estado de la cuenta {}",
+                    evento.usuarioId(), ex);
         }
-    }
-
-    /** Abre la apelacion automatica en su propia transaccion (el evento llega post-commit). */
-    private void abrirApelacion(CuentaEstadoCambiadaEvent evento) {
-        incidenciaService.abrirApelacionAutomatica(evento.usuarioId(), evento.estadoNuevo(),
-                evento.motivo());
     }
 
     /** Correo al vendedor con el resultado de la moderacion de su producto. */

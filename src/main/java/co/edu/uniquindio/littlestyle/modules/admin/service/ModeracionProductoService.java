@@ -21,6 +21,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.function.Supplier;
+
 /**
  * Moderacion reactiva de productos (US-14): el vendedor publica con libertad y es el administrador quien
  * retira (DESACTIVADA, con motivo obligatorio), aprueba o restaura despues. El eje de moderacion es
@@ -63,6 +65,10 @@ public class ModeracionProductoService {
     /** Aprueba una prenda pendiente o rechazada; la deja publicable junto con las demas condiciones. */
     @Transactional
     public PrendaAdminResponse aprobar(Long id) {
+        return auditarFallo(id, AccionAuditoria.APROBAR_PRODUCTO, () -> aprobarInterno(id));
+    }
+
+    private PrendaAdminResponse aprobarInterno(Long id) {
         Prenda prenda = cargarConBloqueo(id);
         EstadoModeracion anterior = prenda.getEstadoModeracion();
         if (anterior == EstadoModeracion.APROBADA) {
@@ -85,6 +91,10 @@ public class ModeracionProductoService {
     /** Restaura una prenda rechazada: el equivalente de aprobarla cuando venia de un rechazo. */
     @Transactional
     public PrendaAdminResponse restaurar(Long id) {
+        return auditarFallo(id, AccionAuditoria.RESTAURAR_PRODUCTO, () -> restaurarInterno(id));
+    }
+
+    private PrendaAdminResponse restaurarInterno(Long id) {
         Prenda prenda = cargarConBloqueo(id);
         if (prenda.getEstadoModeracion() != EstadoModeracion.DESACTIVADA) {
             throw rechazo409("Solo se puede restaurar una prenda desactivada");
@@ -104,6 +114,10 @@ public class ModeracionProductoService {
     /** Rechaza una prenda que esta pendiente o aprobada; el motivo queda visible para el vendedor. */
     @Transactional
     public PrendaAdminResponse rechazar(Long id, String motivo) {
+        return auditarFallo(id, AccionAuditoria.DESACTIVAR_PRODUCTO, () -> rechazarInterno(id, motivo));
+    }
+
+    private PrendaAdminResponse rechazarInterno(Long id, String motivo) {
         if (motivo == null || motivo.isBlank() || motivo.trim().length() < 10
                 || motivo.trim().length() > 500) {
             throw new BusinessException(HttpStatus.BAD_REQUEST,
@@ -123,6 +137,18 @@ public class ModeracionProductoService {
         eventPublisher.publishEvent(new PrendaModeradaEvent(id, prenda.getVendedor().getId(),
                 EstadoModeracion.DESACTIVADA, motivo.trim()));
         return PrendaAdminResponse.from(prenda);
+    }
+
+    /** Conserva en la pista los intentos de moderación que terminan en un error de negocio. */
+    private PrendaAdminResponse auditarFallo(Long id, AccionAuditoria accion,
+                                             Supplier<PrendaAdminResponse> operacion) {
+        try {
+            return operacion.get();
+        } catch (BusinessException ex) {
+            auditoriaService.registrarIntentoFallido(accion, TipoEntidad.PRENDA, String.valueOf(id),
+                    "Intento de moderación fallido: " + ex.getMessage());
+            throw ex;
+        }
     }
 
     /** Carga la prenda con bloqueo de fila, sin importar su estado (asi se moderan rechazadas incluidas). */

@@ -22,8 +22,8 @@ import java.util.TreeSet;
  * Prenda completa para el vendedor: datos, estado, stock total y nivel, atributos de seguridad textil,
  * composición, tallas con stock y mínimo, e imágenes.
  *
- * @see US-14
- * @see RNF-08
+ * @see "US-14"
+ * @see "RNF-08"
  */
 public record PrendaResponse(
         Long id,

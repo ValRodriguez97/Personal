@@ -41,8 +41,8 @@ import java.util.Set;
  * tallas con stock e imágenes. La moderación es posterior a la publicación: solo una prenda
  * {@code DESACTIVADA} deja de ser visible (US-14).
  *
- * @see US-14
- * @see RNF-08
+ * @see "US-14"
+ * @see "RNF-08"
  */
 @Entity
 @Table(name = "prendas", indexes = {

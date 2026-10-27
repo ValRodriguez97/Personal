@@ -36,9 +36,10 @@ class AdminUsuarioServiceTest {
 
     private final UsuarioRepository usuarioRepository = mock(UsuarioRepository.class);
     private final AuditoriaService auditoriaService = mock(AuditoriaService.class);
+    private final IncidenciaService incidenciaService = mock(IncidenciaService.class);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
     private final AdminUsuarioService servicio =
-            new AdminUsuarioService(usuarioRepository, auditoriaService, eventPublisher);
+            new AdminUsuarioService(usuarioRepository, auditoriaService, incidenciaService, eventPublisher);
 
     @BeforeEach
     void autenticarAdministrador() {
@@ -64,6 +65,7 @@ class AdminUsuarioServiceTest {
         verify(auditoriaService).registrar(accion.capture(), eq(TipoEntidad.USUARIO),
                 eq("42"), eq("ACTIVO"), eq("SUSPENDIDO"), eq(motivo));
         assertThat(accion.getValue()).isEqualTo(AccionAuditoria.SUSPENDER_USUARIO);
+        verify(incidenciaService).abrirApelacionAutomatica(42L, EstadoUsuario.SUSPENDIDO, motivo);
         verify(eventPublisher).publishEvent(any(CuentaEstadoCambiadaEvent.class));
         verify(auditoriaService, never()).registrarIntentoFallido(any(), any(), any(), any());
     }

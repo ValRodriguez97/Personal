@@ -29,9 +29,9 @@ Comandos ejecutados en Windows desde la raíz:
 
 | Comando | Resultado |
 |---|---|
-| `.\mvnw.cmd test` | 400 pruebas backend, 0 fallos, 0 errores. |
+| `.\mvnw.cmd test` | 404 pruebas backend, 0 fallos, 0 errores. |
 | `cd frontend; npm ci` | Restauración desde el `package-lock.json`; no se modificaron manifiestos ni se agregaron dependencias. |
-| `cd frontend; npm test -- --watch=false` | 245 pruebas Vitest, 0 fallos. |
+| `cd frontend; npm test -- --watch=false` | 246 pruebas Vitest, 0 fallos. |
 | `cd frontend; npm run build` | Compilación Angular de producción correcta. |
 | `git diff --check` | Sin errores de whitespace. |
 
@@ -39,7 +39,11 @@ Comandos ejecutados en Windows desde la raíz:
 (5 moderadas, 7 altas y 2 críticas). No se ejecutó `npm audit fix` ni se actualizaron
 paquetes, porque no se añadieron dependencias y ese cambio excede esta fase.
 
-La suite backend completa incluye `US14AdminIntegrationTest` (2 escenarios H2). Sus
+La suite backend completa incluye `US14AdminIntegrationTest` (3 escenarios H2). La prueba
+`persisteHashConPrecisionDeBaseDeDatosYAbreApelacionEnLaTransaccion` registra una
+suspensión con MockMvc, fuerza `flush()`/`clear()` del `EntityManager` y verifica la
+cadena tras recargar los registros; también comprueba la IP y la apelación automática.
+Sus
 aserciones ejercitan autenticación/autorización y validación, invalidación del token del
 vendedor suspendido, visibilidad en catálogo y recomendaciones, prioridad de reportes,
 motivo para el vendedor, bloqueo de reactivación, indisponibilidad en carrito/checkout y
@@ -63,14 +67,14 @@ auditoría.
 
 | RNF | Implementado | Evidencia y límite |
 |---|---|---|
-| RNF-08 — trazabilidad de acciones administrativas > 99,5 % | Acciones de cuenta, moderación y ciclo de vida de incidencia generan registro con admin, timestamp `Instant`, rol, acción, entidad, valores, motivo, resultado y hashes. Los éxitos comparten transacción con su operación; los intentos fallidos se persisten con `REQUIRES_NEW`. | `AuditoriaServiceTest` comprueba hash determinista, serialización sin colisiones por delimitadores, integridad y detección de manipulación. `US14AdminIntegrationTest` comprueba registros de acciones. **El 99,5 % es un objetivo de disponibilidad/cobertura en producción, no se puede certificar solo con pruebas locales.** No se captura IP actualmente (`ip_origen` permanece nula). |
+| RNF-08 — trazabilidad de acciones administrativas > 99,5 % | Acciones de cuenta, moderación y ciclo de vida de incidencia generan registro con admin, timestamp `Instant` normalizado a microsegundos, IP remota de la petición, rol, acción, entidad, valores, motivo, resultado y hashes. Los éxitos comparten transacción con su operación; los intentos fallidos se persisten con `REQUIRES_NEW`. | `AuditoriaServiceTest` comprueba hash determinista, serialización sin colisiones por delimitadores, integridad y detección de manipulación. `US14AdminIntegrationTest` recarga tras `flush/clear`, comprueba IP e integridad de la cadena. **El 99,5 % es un objetivo de disponibilidad/cobertura en producción, no se puede certificar solo con pruebas locales.** |
 | RNF-17 — > 90 % de incidencias resueltas en menos de 24 h | Incidencias con estados, asignación a admin, tiempos de creación/cierre, respuesta y KPI de tasa de resolución en ventana de 30 días. | Pruebas de servicios y UI ejercitan operaciones y el dashboard consulta la tasa; `ResumenAdminService` calcula la métrica. **La meta > 90 % requiere medición de datos operacionales reales.** No hay SLA/alerta de vencimiento automatizado en esta fase. |
 
 ## Suposiciones y decisiones
 
 - **Moderación posterior:** se mantiene la decisión de negocio: publicar libremente, revisar después; `SIN_REVISAR` no bloquea la venta.
 - **Carrito/checkout:** una prenda o vendedor que deja de ser visible se muestra no disponible en el carrito y no se puede incluir en un checkout nuevo. No se cancelan ni reescriben pedidos ya pagados.
-- **Apelación de cuenta:** al suspender/bloquear se crea una incidencia ligada al titular automáticamente. A falta de endpoint de apelación público con verificación del correo, no se habilita una página de envío sin autenticación; la incidencia generada aparece en el historial cuando el usuario recupere acceso.
+- **Apelación de cuenta:** al suspender/bloquear se crea una incidencia ligada al titular dentro de la misma transacción; si no puede guardarse, tampoco se confirma el cambio de estado. El login muestra un mensaje distinto para suspensión y bloqueo, e informa que la apelación ya fue abierta y la respuesta llegará por correo. A falta de endpoint de apelación público con verificación del correo, no se habilita una página de envío sin autenticación.
 - **Protección MySQL:** un operador autorizado aplica `auditoria-inmutable-mysql.sql` después de que exista `auditoria_admin`; H2 no ejecuta esos triggers.
 - **Restauración:** es una decisión administrativa y deja moderación `APROBADA`; no altera `EstadoPrenda`, inventario ni pedidos existentes.
 - **Reportes:** el cliente puede reportar desde la ficha; el reporte se vincula a la prenda y eleva prioridad en la cola. Las apelaciones de producto son exclusivas del vendedor propietario y requieren prenda desactivada.

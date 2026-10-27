@@ -31,8 +31,8 @@ import java.util.Map;
  * Alta y edición de prendas del vendedor autenticado. Una prenda de otro vendedor se trata como
  * inexistente (404) para no revelar su existencia.
  *
- * @see US-14
- * @see RNF-08
+ * @see "US-14"
+ * @see "RNF-08"
  */
 @Service
 @RequiredArgsConstructor

@@ -16,7 +16,7 @@ es independiente del estado comercial. No existe cola de aprobación previa.
 |---|---|
 | `usuarios` | Se amplía `estado` con `BLOQUEADO` (`VARCHAR`); valores vigentes: `ACTIVO`, `SUSPENDIDO`, `BLOQUEADO`, `ELIMINADO`. Migrador compatible con H2 y MySQL. |
 | `prendas` | `estado` comercial (`ACTIVA`/`INACTIVA`) independiente de `estado_moderacion` (`SIN_REVISAR`/`APROBADA`/`DESACTIVADA`), `motivo_moderacion`, `fecha_moderacion` y `admin_moderacion_id`. Las prendas existentes quedan `APROBADA` por defecto; nulos históricos se normalizan a `APROBADA`, y los estados heredados `PENDIENTE`/`RECHAZADA` se traducen a `SIN_REVISAR`/`DESACTIVADA`. |
-| `auditoria_admin` | `id`, `fecha_hora` (`Instant`), `admin_id`, `admin_email`, `rol`, `accion`, `tipo_entidad`, `entidad_id`, `valor_anterior`, `valor_nuevo`, `motivo`, `ip_origen`, `resultado`, `hash_anterior`, `hash_sha256`. Índices por fecha, admin, acción y entidad. |
+| `auditoria_admin` | `id`, `fecha_hora` (`Instant` truncado a microsegundos para concordar con la precisión de almacenamiento), `admin_id`, `admin_email`, `rol`, `accion`, `tipo_entidad`, `entidad_id`, `valor_anterior`, `valor_nuevo`, `motivo`, `ip_origen` (dirección remota HTTP), `resultado`, `hash_anterior`, `hash_sha256`. Índices por fecha, admin, acción y entidad. |
 | `auditoria_admin_candado` | Fila única que se bloquea al serializar escrituras concurrentes de la cadena, incluso antes de la primera entrada. La última entrada también se carga con bloqueo pesimista. |
 | `incidencias` | `reportante_id`, email y rol, tipo, referencia polimórfica (`referencia_tipo`/`referencia_id`/detalle), asunto, descripción, estado, respuesta, admin asignado, fecha de creación y fecha de resolución. Índices para estado, reportante, fechas y referencia. |
 
@@ -57,8 +57,12 @@ triggers está fuera del límite de confianza de este mecanismo.
 Todas requieren motivo de 10 a 500 caracteres. Se rechazan acciones sobre la cuenta
 propia del administrador y sobre cualquier cuenta con rol `ADMINISTRADOR`. Los cambios
 se hacen con `UsuarioRepository.findByIdForUpdate`; la auditoría de éxito participa de
-la transacción y la notificación de email se publica tras commit. Una cuenta no activa
-invalida la autenticación JWT y no accede a rutas protegidas.
+la transacción. Al suspender/bloquear, la incidencia automática de apelación se crea antes
+del commit en la misma transacción: si la incidencia no puede persistirse, se revierte
+el cambio de estado. El evento post-commit queda únicamente para el envío asíncrono del
+correo. Una cuenta no activa invalida la autenticación JWT y no accede a rutas protegidas.
+El login responde `403` con un mensaje diferente para `SUSPENDIDO` y `BLOQUEADO`, e
+indica que la apelación ya fue abierta y la respuesta llegará por correo.
 
 Suspender/bloquear a un vendedor no reescribe el estado de sus prendas: se ocultan por
 la condición del propietario activo.
@@ -91,8 +95,10 @@ Tipos: `APELACION_SUSPENSION`, `APELACION_PRODUCTO`, `REPORTE_PRODUCTO`,
 Asunto 5–200, descripción 20–4000; respuestas de admin 10–4000 caracteres.
 
 - Al suspender/bloquear una cuenta se genera automáticamente una `APELACION_SUSPENSION`
-  asociada al reportante. No se entrega un endpoint anónimo que acepte texto y correo:
-  queda pendiente un desafío por email con expiración y límite de solicitudes.
+  asociada al reportante dentro de la misma transacción del cambio de estado, evitando
+  dejar una cuenta deshabilitada sin incidencia. El correo se envía en forma asíncrona
+  después del commit. No se entrega un endpoint anónimo que acepte texto y correo: queda
+  pendiente un desafío por email con expiración y límite de solicitudes.
 - Solo el vendedor dueño de una prenda `DESACTIVADA` puede crear su apelación.
 - El cliente genera `REPORTE_PRODUCTO` desde el detalle de una prenda. Un reporte en
   estado abierto/en revisión aumenta su prioridad en la cola del admin.
@@ -234,7 +240,9 @@ si el JWT ya se ha invalidado por suspensión/bloqueo.
    filtración de existencia de cuentas.
 3. Las metas de RNF-08/RNF-17 no se pueden afirmar como estadísticas reales con suites
    locales. Se requiere monitorización operacional y reporte periódico.
-4. `ip_origen` no se captura aún y queda nula.
+4. `ip_origen` toma `HttpServletRequest.getRemoteAddr()`, como en el login; detrás de un
+   proxy inverso registra la IP que ve la aplicación, salvo que la infraestructura
+   configure correctamente la resolución confiable de IP remota.
 5. El hash no sustituye un anclaje externo/firma digital; administradores de BD
    privilegiados podrían reescribir tabla y cadena.
 6. La UI no cancela órdenes ni pedidos pagados al desactivar un artículo, por decisión
@@ -250,6 +258,7 @@ sequenceDiagram
   participant API as UsuarioAdminController
   participant Servicio as AdminUsuarioService
   participant Usuario as UsuarioRepository
+  participant Incidencias as IncidenciaService
   participant Auditoria as AuditoriaService
   participant Eventos as Listener AFTER_COMMIT
   participant Correo as CorreoService
@@ -257,6 +266,7 @@ sequenceDiagram
   API->>Servicio: suspender(id, motivo)
   Servicio->>Usuario: findByIdForUpdate(id)
   Servicio->>Usuario: guardar estado SUSPENDIDO
+  Servicio->>Incidencias: crear apelación automática en la misma transacción
   Servicio->>Auditoria: registrar en transacción
   Servicio-->>Eventos: publicar evento
   Servicio-->>API: response
@@ -362,20 +372,25 @@ la tabla registra los paths que aparecen como cambiados en el worktree de esta s
 | `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/controller/ModeracionProductoAdminController.java` | Ruta canónica y operación de desactivación. |
 | `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/controller/IncidenciaUsuarioController.java` | API de incidencias para usuarios. |
 | `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/controller/ResumenAdminController.java` | Endpoint KPI. |
-| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/controller/IncidenciaUsuarioController.java` | API de incidencias para usuarios. |
-| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/controller/ResumenAdminController.java` | Endpoint KPI. |
 | `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/dto/ResumenAdminResponse.java` | Incluye prendas sin revisar. |
-| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/service/AdminUsuarioService.java` | Motivo obligatorio y trazabilidad de fallos. |
-| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/service/AuditoriaService.java` | Codificación inequívoca de hash y consulta paginada. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/service/AdminUsuarioService.java` | Motivo obligatorio, trazabilidad de fallos y apelación atómica al suspender/bloquear. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/service/AuditoriaService.java` | Hash inequívoco, timestamp con precisión de microsegundos, IP remota y consulta paginada. |
 | `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/service/IncidenciaService.java` | Referencias, propiedad y consulta de métricas. |
-| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/service/ModeracionProductoService.java` | Datos de decisión y motivo de moderación. |
-| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/service/NotificacionAdministracionListener.java` | Notificación post-commit y carga de vendedor. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/service/ModeracionProductoService.java` | Datos de decisión, motivo y auditoría de intentos fallidos. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/service/NotificacionAdministracionListener.java` | Envío asíncrono de correos post-commit. |
 | `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/service/ResumenAdminService.java` | KPI de moderación. |
 | `src/main/java/co/edu/uniquindio/littlestyle/modules/catalogocompras/carrito/service/CarritoService.java` | Disponibilidad según visibilidad administrativa. |
 | `src/main/java/co/edu/uniquindio/littlestyle/modules/catalogocompras/catalogo/dto/PrendaResponse.java` | Estado y metadatos de moderación visibles al vendedor. |
 | `src/main/java/co/edu/uniquindio/littlestyle/modules/catalogocompras/catalogo/repository/PrendaRepository.java` | Filtros de visibilidad y prioridad de cola. |
 | `src/main/java/co/edu/uniquindio/littlestyle/modules/catalogocompras/catalogo/service/PrendaService.java` | Bloqueo de edición/reactivación por vendedor. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/catalogocompras/checkout/service/PedidoCheckoutService.java` | Mensaje accionable si un producto del carrito dejó de estar disponible. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/auth/service/AuthService.java` | Mensajes de login diferenciados para cuentas suspendidas o bloqueadas. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/auth/model/EstadoUsuario.java` | Corrección de puntuación en el Javadoc del estado bloqueado. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/catalogocompras/catalogo/model/Prenda.java` | Referencias Javadoc válidas a US-14 y RNF-08. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/catalogocompras/catalogo/model/EstadoModeracion.java` | Referencias Javadoc válidas a US-14 y RNF-08. |
 | `src/test/java/co/edu/uniquindio/littlestyle/modules/admin/US14AdminIntegrationTest.java` | Integración de API/visibilidad/checkout/auditoría. |
+| `src/test/java/co/edu/uniquindio/littlestyle/modules/auth/AuthSecurityIntegrationTest.java` | Mensajes de login para cuenta suspendida y bloqueada. |
+| `src/test/java/co/edu/uniquindio/littlestyle/modules/auth/service/AuthServiceTest.java` | Verifica el 403 con mensaje de apelación automática. |
 | `src/test/java/co/edu/uniquindio/littlestyle/modules/admin/service/AdminUsuarioServiceTest.java` | Pruebas de reglas administrativas. |
 | `src/test/java/co/edu/uniquindio/littlestyle/modules/admin/service/AuditoriaServiceTest.java` | Hash, colisión e integridad. |
 | `src/test/java/co/edu/uniquindio/littlestyle/modules/admin/service/IncidenciaServiceTest.java` | Reporte y apelación. |
@@ -405,7 +420,53 @@ la tabla registra los paths que aparecen como cambiados en el worktree de esta s
 | `frontend/src/app/features/catalogoCompras/models/prenda.models.ts` | Campos de moderación vendedor. |
 | `frontend/src/app/features/catalogoCompras/pages/productos-lista.html` | Motivo, bloqueo vendedor y enlace para apelar. |
 | `frontend/src/app/features/catalogoCompras/pages/productos-lista.spec.ts` | Cobertura de prendas desactivadas. |
+| `frontend/src/app/features/catalogoCompras/pages/checkout.spec.ts` | Comprueba que checkout muestre el mensaje accionable de disponibilidad. |
 | `frontend/src/app/features/vitrina/pages/detalle.html` | Diálogo accesible para reportar producto. |
 | `frontend/src/app/features/vitrina/pages/detalle.spec.ts` | Validación y creación de reporte. |
 | `frontend/src/app/features/vitrina/pages/detalle.ts` | Envío de `REPORTE_PRODUCTO`. |
 | `frontend/src/app/shared/components/navbar/navbar.spec.ts` | Aislamiento de módulos de test del navbar. |
+| `frontend/src/app/app.routes.ts` | Integra las rutas lazy del panel administrativo. |
+| `frontend/src/app/core/guards/role.guard.spec.ts` | Prueba el guard de acceso de administrador. |
+| `frontend/src/app/features/home/pages/admin-panel/admin-panel.ts` | Sustituido por las páginas y rutas del nuevo panel. |
+| `frontend/src/app/shared/components/navbar/navbar.ts` | Enlace de navegación del panel administrativo. |
+| `docs/us-14/auditoria-inmutable-mysql.sql` | Triggers MySQL que bloquean UPDATE/DELETE de auditoría. |
+| `frontend/src/app/features/admin/admin.routes.ts` | Rutas lazy protegidas por rol. |
+| `frontend/src/app/features/admin/pages/incidencias-admin/incidencias-admin.html` | Bandeja y detalle de incidencias administrativas. |
+| `frontend/src/app/features/admin/pages/incidencias-admin/incidencias-admin.spec.ts` | Pruebas de bandeja y resolución. |
+| `frontend/src/app/features/admin/pages/usuarios-admin/usuarios-admin.html` | Tabla y controles de administración de cuentas. |
+| `frontend/src/app/features/admin/services/auditoria.service.ts` | Consulta y verificación de integridad. |
+| `frontend/src/app/features/admin/services/resumen-admin.service.ts` | Consulta del dashboard KPI. |
+| `frontend/src/app/features/admin/services/resumen-admin.service.spec.ts` | Pruebas HTTP del servicio de resumen. |
+| `frontend/src/app/features/admin/services/usuarios-admin.service.ts` | Operaciones de búsqueda/cambio de estado de cuenta. |
+| `frontend/src/app/features/admin/services/usuarios-admin.service.spec.ts` | Pruebas HTTP de administración de cuentas. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/dto/CambioEstadoCuentaRequest.java` | DTO para estado destino y motivo. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/dto/PrendaAdminDetalleResponse.java` | DTO de detalle para la cola de moderación. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/dto/PrendaAdminResponse.java` | DTO resumido de moderación. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/dto/RechazoPrendaRequest.java` | DTO de motivo para desactivar una prenda. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/dto/UsuarioAdminResponse.java` | DTO de la bandeja administrativa de usuarios. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/model/AccionAuditoria.java` | Catálogo de acciones auditables. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/model/EstadoIncidencia.java` | Estados del ciclo de vida de incidencia. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/model/Incidencia.java` | Entidad de soporte, apelación y reporte. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/model/RegistroAuditoria.java` | Entidad inmutable de la cadena de auditoría. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/model/ResultadoAuditoria.java` | Resultado de la acción auditada. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/model/TipoEntidad.java` | Tipo de entidad referenciada por auditoría. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/model/TipoIncidencia.java` | Tipos de incidencia disponibles. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/repository/IncidenciaRepository.java` | Persistencia y filtros de incidencias. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/repository/RegistroAuditoriaRepository.java` | Lecturas append-only y locks de cadena. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/auth/repository/UsuarioRepository.java` | Bloqueo pesimista y consultas administrativas. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/catalogocompras/catalogo/service/EstadoModeracionSchemaMigrator.java` | Migración segura de columnas de moderación. |
+| `src/main/java/co/edu/uniquindio/littlestyle/shared/correo/CorreoService.java` | Plantillas y envíos de notificación de US-14. |
+| `src/main/java/co/edu/uniquindio/littlestyle/shared/event/CuentaEstadoCambiadaEvent.java` | Evento para notificar cambio de estado post-commit. |
+| `src/main/java/co/edu/uniquindio/littlestyle/shared/event/PrendaModeradaEvent.java` | Evento para notificar resultado de moderación. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/controller/IncidenciaAdminController.java` | API administrativa de incidencias. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/controller/UsuarioAdminController.java` | API administrativa de cuentas. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/dto/CrearIncidenciaRequest.java` | Validación de solicitudes de incidencia. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/dto/IncidenciaResponse.java` | Respuesta de consulta de incidencia. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/dto/ResolucionIncidenciaRequest.java` | Validación de respuesta de resolución. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/model/TipoReferenciaIncidencia.java` | Tipos de referencias asociadas a incidencias. |
+| `src/main/java/co/edu/uniquindio/littlestyle/modules/admin/service/AuditoriaSchemaMigrator.java` | Inicializa estructura de candado para la cadena. |
+| `src/main/java/co/edu/uniquindio/littlestyle/shared/event/IncidenciaCerradaEvent.java` | Evento de notificación de cierre de incidencia. |
+| `src/main/resources/correo/cuenta-estado.html` | Plantilla de estado de cuenta. |
+| `src/main/resources/correo/respuesta-incidencia.html` | Plantilla de respuesta de incidencia. |
+| `src/main/resources/correo/resultado-moderacion.html` | Plantilla de resultado de moderación. |
+| `src/test/java/co/edu/uniquindio/littlestyle/modules/catalogocompras/catalogo/model/PrendaModeracionTest.java` | Persistencia y metadatos de moderación de prenda. |
