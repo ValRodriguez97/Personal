@@ -145,6 +145,9 @@ export interface FiltrosAuditoria {
   accion?: string;
   tipoEntidad?: string;
   entidadId?: number;
+  resultado?: string;
+  desde?: string;
+  hasta?: string;
   pagina?: number;
   tamano?: number;
 }
@@ -258,4 +261,23 @@ export const ETIQUETAS_ESTADO_INCIDENCIA: Record<EstadoIncidencia, string> = {
 export const ETIQUETAS_RESULTADO: Record<ResultadoAuditoria, string> = {
   EXITO: 'Éxito',
   FALLO: 'Fallo',
+};
+
+export const ETIQUETAS_ACCION: Record<string, string> = {
+  HABILITAR_USUARIO: 'Habilitar usuario',
+  SUSPENDER_USUARIO: 'Suspender usuario',
+  BLOQUEAR_USUARIO: 'Bloquear usuario',
+  APROBAR_PRODUCTO: 'Aprobar producto',
+  DESACTIVAR_PRODUCTO: 'Desactivar producto',
+  RESTAURAR_PRODUCTO: 'Restaurar producto',
+  TOMAR_INCIDENCIA: 'Tomar incidencia',
+  RESOLVER_INCIDENCIA: 'Resolver incidencia',
+  RECHAZAR_INCIDENCIA: 'Rechazar incidencia',
+  ACCION_FALLIDA: 'Acción fallida',
+};
+
+export const ETIQUETAS_TIPO_ENTIDAD: Record<string, string> = {
+  USUARIO: 'Usuario',
+  PRENDA: 'Prenda',
+  INCIDENCIA: 'Incidencia',
 };

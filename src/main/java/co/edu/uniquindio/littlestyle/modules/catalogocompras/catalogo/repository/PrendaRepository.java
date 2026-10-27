@@ -217,7 +217,7 @@ public interface PrendaRepository extends JpaRepository<Prenda, Long> {
                                   Pageable pageable);
 
     /** Prenda con todas sus colecciones e info de vendedor, para el detalle de moderacion. */
-    @EntityGraph(attributePaths = {"tallas", "vendedor", "composicion", "imagenes"})
+    @EntityGraph(attributePaths = {"vendedor"})
     @Query("select p from Prenda p where p.id = :id")
     Optional<Prenda> buscarDetalleAdmin(@Param("id") Long id);
 

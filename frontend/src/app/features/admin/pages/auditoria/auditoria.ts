@@ -1,13 +1,10 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-
+import { DatePipe } from '@angular/common';
 import { Navbar } from '../../../../shared/components/navbar/navbar';
 import { procesarErrorApi } from '../../../auth/auth.validators';
 import {
-  ETIQUETAS_RESULTADO,
-  FiltrosAuditoria,
-  Pagina,
-  RegistroAuditoria,
-  RespuestaIntegridad,
+  ETIQUETAS_ACCION, ETIQUETAS_RESULTADO, ETIQUETAS_TIPO_ENTIDAD,
+  FiltrosAuditoria, Pagina, RegistroAuditoria, RespuestaIntegridad,
 } from '../../models/admin.models';
 import { AuditoriaService } from '../../services/auditoria.service';
 
@@ -17,9 +14,10 @@ import { AuditoriaService } from '../../services/auditoria.service';
  * @see US-14
  * @see RNF-17
  */
+
 @Component({
   selector: 'app-auditoria',
-  imports: [Navbar],
+  imports: [Navbar, DatePipe],
   templateUrl: './auditoria.html',
   styles: `
     .admin-filtros {
@@ -55,6 +53,40 @@ import { AuditoriaService } from '../../services/auditoria.service';
       background: var(--ls-error-soft);
       color: var(--ls-error);
     }
+    .valor-cambio {
+      display: block;
+      font-size: 0.82rem;
+      color: var(--ls-muted);
+    }
+    .valor-cambio s {
+      opacity: 0.7;
+    }
+    .admin-filtros select,
+    .admin-filtros input[type='datetime-local'] {
+      width: 100%;
+      padding: 0.8rem 1rem;
+      border: 1.5px solid var(--ls-border);
+      border-radius: var(--ls-radius);
+      background: #fffef7;
+      color: var(--ls-ink);
+      font: inherit;
+      font-size: 0.97rem;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .admin-filtros select:focus,
+    .admin-filtros input[type='datetime-local']:focus {
+      outline: none;
+      border-color: var(--ls-primary);
+      box-shadow: 0 0 0 4px var(--ls-primary-soft);
+    }
+    .admin-filtros .field {
+      flex: 1 1 200px;
+    }
+    .admin-filtros .filtros-acciones {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
   `,
 })
 export class AuditoriaPage implements OnInit {
@@ -77,7 +109,14 @@ export class AuditoriaPage implements OnInit {
   protected readonly integridad = signal<RespuestaIntegridad | null>(null);
   protected readonly integridadCargando = signal(false);
   protected readonly errorIntegridad = signal<string | null>(null);
+  protected readonly etiquetasAccion = ETIQUETAS_ACCION;
+  protected readonly etiquetasTipo = ETIQUETAS_TIPO_ENTIDAD;
+  protected readonly acciones = Object.keys(ETIQUETAS_ACCION);
+  protected readonly tipos = Object.keys(ETIQUETAS_TIPO_ENTIDAD);
 
+  protected readonly filtroResultado = signal('');
+  protected readonly filtroDesde = signal('');
+  protected readonly filtroHasta = signal('');
   /**
    * Carga la primera página del visor al iniciar.
    * @returns No devuelve un valor.
@@ -97,9 +136,12 @@ export class AuditoriaPage implements OnInit {
     const entidadId = this.filtroEntidadId().trim();
     const filtros: FiltrosAuditoria = {
       adminEmail: this.filtroEmail().trim() || undefined,
-      accion: this.filtroAccion().trim() || undefined,
-      tipoEntidad: this.filtroTipoEntidad().trim() || undefined,
-      entidadId: entidadId === '' || Number.isNaN(Number(entidadId)) ? undefined : Number(entidadId),
+      accion: this.filtroAccion() || undefined,
+      tipoEntidad: this.filtroTipoEntidad() || undefined,
+      resultado: this.filtroResultado() || undefined,
+      entidadId: /^\d+$/.test(entidadId) ? Number(entidadId) : undefined,
+      desde: this.filtroDesde() ? new Date(this.filtroDesde()).toISOString() : undefined,
+      hasta: this.filtroHasta() ? new Date(this.filtroHasta()).toISOString() : undefined,
       pagina: this.pagina(),
       tamano: 10,
     };
@@ -118,6 +160,11 @@ export class AuditoriaPage implements OnInit {
     });
   }
 
+  protected hayFiltros(): boolean {
+    return !!(this.filtroEmail() || this.filtroAccion() || this.filtroTipoEntidad()
+      || this.filtroEntidadId() || this.filtroResultado() || this.filtroDesde() || this.filtroHasta());
+  }
+
   /**
    * Aplica los filtros y vuelve a la primera página.
    * @returns No devuelve un valor.
@@ -132,10 +179,10 @@ export class AuditoriaPage implements OnInit {
    * @returns No devuelve un valor.
    */
   protected limpiarFiltros(): void {
-    this.filtroEmail.set('');
-    this.filtroAccion.set('');
-    this.filtroTipoEntidad.set('');
-    this.filtroEntidadId.set('');
+    for (const f of [this.filtroEmail, this.filtroAccion, this.filtroTipoEntidad,
+      this.filtroEntidadId, this.filtroResultado, this.filtroDesde, this.filtroHasta]) {
+      f.set('');
+    }
     this.pagina.set(0);
     this.cargar();
   }
@@ -190,5 +237,17 @@ export class AuditoriaPage implements OnInit {
    */
   protected hashCorto(hash: string): string {
     return hash.length > 12 ? `${hash.slice(0, 12)}…` : hash;
+  }
+
+  protected copiarHash(hash: string): void {
+    void navigator.clipboard?.writeText(hash);
+  }
+
+  protected etiquetaAccion(accion: string): string {
+    return this.etiquetasAccion[accion] ?? accion;
+  }
+
+  protected etiquetaTipo(tipo: string): string {
+    return this.etiquetasTipo[tipo] ?? tipo;
   }
 }

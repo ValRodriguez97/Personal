@@ -71,15 +71,14 @@ describe('AuditoriaPage (US-14)', () => {
 
   it('aplica los filtros de auditoría', () => {
     const { fixture, el } = crear();
-    const accion = el.querySelector<HTMLInputElement>('#filtro-auditoria-accion')!;
-    accion.value = 'ASIGNACION_VENDEDOR';
-    accion.dispatchEvent(new Event('input'));
-    el.querySelector<HTMLButtonElement>('.admin-filtros .btn-primary')!.click();
+    const accion = el.querySelector<HTMLSelectElement>('#f-accion')!;
+    accion.value = 'SUSPENDER_USUARIO';
+    accion.dispatchEvent(new Event('change'));
     fixture.detectChanges();
 
-    expect(listar.mock.calls[listar.mock.calls.length - 1][0]).toMatchObject({
-      accion: 'ASIGNACION_VENDEDOR',
-    });
+    expect(listar).toHaveBeenLastCalledWith(
+      expect.objectContaining({accion: 'SUSPENDER_USUARIO'})
+    );
   });
 
   it('verifica la integridad y muestra el resultado íntegro', () => {
