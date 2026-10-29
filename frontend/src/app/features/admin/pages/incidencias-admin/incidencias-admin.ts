@@ -82,6 +82,36 @@ const ROLES_FILTRO: Rol[] = ['CLIENTE', 'VENDEDOR'];
       background: var(--ls-error-soft);
       color: var(--ls-error);
     }
+    .celda-accion {
+      min-width: 150px;
+    }
+    .acciones-select {
+      width: 100%;
+      min-width: 145px;
+      padding: 0.65rem 2rem 0.65rem 0.8rem;
+      border: 1.5px solid var(--ls-border);
+      border-radius: 999px;
+      background: var(--ls-surface);
+      color: var(--ls-primary-dark);
+      font: inherit;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+    }
+    .acciones-select:hover:not(:disabled) {
+      border-color: var(--ls-primary);
+      background: var(--ls-primary-soft);
+    }
+    .acciones-select:focus-visible {
+      outline: none;
+      border-color: var(--ls-primary);
+      box-shadow: 0 0 0 4px var(--ls-primary-soft);
+    }
+    .acciones-select:disabled {
+      cursor: wait;
+      opacity: 0.65;
+    }
     .confirm-dialog textarea {
       width: 100%;
       padding: 0.8rem 1rem;
@@ -128,6 +158,31 @@ export class IncidenciasAdminPage implements OnInit {
   protected readonly errorDialogo = signal<string | null>(null);
   protected readonly enviando = signal(false);
   protected readonly respuestaCampo = viewChild<ElementRef<HTMLTextAreaElement>>('respuestaCampo');
+
+  /**
+   * Ejecuta la opción seleccionada en el menú de acciones de una incidencia.
+   * @param incidencia Incidencia sobre la que se eligió una acción.
+   * @param event Cambio del selector de acciones.
+   * @returns No devuelve un valor.
+   */
+  protected ejecutarAccion(incidencia: Incidencia, event: Event): void {
+    const selector = event.currentTarget;
+    if (!(selector instanceof HTMLSelectElement)) return;
+    const accion = selector.value;
+    selector.value = '';
+
+    switch (accion) {
+      case 'TOMAR':
+        this.tomar(incidencia);
+        break;
+      case 'RESOLVER':
+        this.abrirDialogo(incidencia, 'RESOLVER');
+        break;
+      case 'RECHAZAR':
+        this.abrirDialogo(incidencia, 'RECHAZAR');
+        break;
+    }
+  }
 
   /**
    * Carga la primera página de la bandeja al iniciar.

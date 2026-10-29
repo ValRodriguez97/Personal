@@ -94,7 +94,7 @@
       </div>
     } @else {
       <div class="catalog-table-wrap">
-        <table class="catalog-table">
+        <table class="catalog-table auditoria-table">
           <caption class="visually-hidden">Registros de auditoría</caption>
           <thead>
           <tr>
@@ -105,7 +105,6 @@
             <th scope="col">Cambio</th>
             <th scope="col">Resultado</th>
             <th scope="col">Motivo</th>
-            <th scope="col">Hash</th>
           </tr>
           </thead>
           <tbody>
@@ -129,62 +128,11 @@
               </span>
                 </td>
                 <td class="muted-cell">{{ r.motivo ?? '—' }}</td>
-                <td class="hash-celda">
-                  <button type="button" class="btn-ghost btn-small" [title]="r.hash"
-                          (click)="copiarHash(r.hash)" [attr.aria-label]="'Copiar hash del registro ' + r.id">
-                    {{ hashCorto(r.hash) }}
-                  </button>
-                </td>
               </tr>
             }
           </tbody>
         </table>
       </div>
-      <!-- conserva aquí el <nav class="admin-paginado"> existente -->
-    }
-
-    @if (cargando()) {
-      <div class="catalog-state" role="status"><span class="spinner spinner-dark"></span> Cargando auditoría…</div>
-    } @else if (items().length === 0) {
-      <div class="catalog-state"><p>Todavía no hay registros de auditoría.</p></div>
-    } @else {
-      <div class="catalog-table-wrap">
-        <table class="catalog-table">
-          <caption class="visually-hidden">Registros de auditoría con resultado, motivo y hash de la cadena</caption>
-          <thead>
-            <tr>
-              <th scope="col">Fecha</th>
-              <th scope="col">Administrador</th>
-              <th scope="col">Acción</th>
-              <th scope="col">Entidad</th>
-              <th scope="col">Resultado</th>
-              <th scope="col">Motivo</th>
-              <th scope="col">Hash</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (r of items(); track r.id) {
-              <tr>
-                <td class="muted-cell">{{ r.fechaHora }}</td>
-                <td>
-                  <strong>{{ r.adminEmail }}</strong>
-                  <span class="product-meta">{{ r.rol }}</span>
-                </td>
-                <td>{{ r.accion }}</td>
-                <td class="muted-cell">{{ r.tipoEntidad }} @if (r.entidadId !== null) { #{{ r.entidadId }} }</td>
-                <td>
-                  <span class="state-chip" [class.chip-FALLO]="r.resultado === 'FALLO'" [class.is-off]="r.resultado === 'EXITO'">
-                    {{ etiquetasResultado[r.resultado] }}
-                  </span>
-                </td>
-                <td class="muted-cell">{{ r.motivo ?? '—' }}</td>
-                <td class="hash-celda">{{ hashCorto(r.hash) }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-
       <nav class="admin-paginado" aria-label="Paginación de auditoría">
         <button type="button" class="btn-ghost" [disabled]="pagina() === 0" (click)="anterior()">Anterior</button>
         <span>Página {{ pagina() + 1 }} de {{ totalPaginas() || 1 }} · {{ totalElementos() }} registros</span>

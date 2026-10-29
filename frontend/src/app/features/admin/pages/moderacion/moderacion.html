@@ -72,13 +72,13 @@
         <table class="catalog-table">
           <caption class="visually-hidden">Cola de moderación con vendedor, estado de moderación y acciones</caption>
           <thead>
-            <tr>
-              <th scope="col">Prenda</th>
-              <th scope="col">Vendedor</th>
-              <th scope="col">Precio</th>
-              <th scope="col">Estado</th>
-              <th scope="col">Acción</th>
-            </tr>
+          <tr>
+            <th scope="col">Prenda</th>
+            <th scope="col">Vendedor</th>
+            <th scope="col">Precio</th>
+            <th scope="col">Estado</th>
+            <th scope="col">Acción</th>
+          </tr>
           </thead>
           <tbody>
             @for (p of items(); track p.id) {
@@ -125,73 +125,130 @@
   <section class="catalog-card detalle-prenda" aria-labelledby="detalle-titulo">
     @if (detalleCargando()) {
       <div class="catalog-state" role="status"><span class="spinner spinner-dark"></span> Cargando detalle…</div>
-    } @else if (seleccionada(); as d) {
-      <header class="catalog-heading">
-        <div>
-          <h2 id="detalle-titulo">{{ d.nombre }}</h2>
-          <p class="catalog-subtitle">
-            Vendedor: {{ d.vendedorEmail }}@if (d.vendedorTienda) { · {{ d.vendedorTienda }} } ·
-            <span
-              class="state-chip"
-              [class.chip-SIN-REVISAR]="d.estadoModeracion === 'SIN_REVISAR'"
-              [class.chip-DESACTIVADA]="d.estadoModeracion === 'DESACTIVADA'"
-              [class.is-off]="d.estadoModeracion === 'APROBADA'"
-            >{{ etiquetasModeracion[d.estadoModeracion] }}</span>
-          </p>
-        </div>
-        <button type="button" class="btn-ghost" (click)="cerrarDetalle()">Cerrar detalle</button>
-      </header>
-
-      <dl>
-        <div><dt>Categoría</dt><dd>{{ d.categoria }}</dd></div>
-        <div><dt>Género</dt><dd>{{ d.genero ?? '—' }}</dd></div>
-        <div><dt>Marca</dt><dd>{{ d.marca ?? '—' }}</dd></div>
-        <div><dt>Estampado</dt><dd>{{ d.estampado ?? '—' }}</dd></div>
-        <div><dt>Precio</dt><dd>{{ precio(d.precio) }}</dd></div>
-        <div><dt>Cuidado</dt><dd>{{ d.instruccionesCuidado ?? '—' }}</dd></div>
-        <div><dt>Tintes sintéticos</dt><dd>{{ d.tintesSinteticos ? 'Sí' : 'No' }}</dd></div>
-        <div><dt>Broches metálicos</dt><dd>{{ d.brochesMetalicos ? 'Sí' : 'No' }}</dd></div>
-        <div><dt>Contiene níquel</dt><dd>{{ d.contieneNiquel ? 'Sí' : 'No' }}</dd></div>
-        <div><dt>Formaldehído</dt><dd>{{ d.tratamientoFormaldehido ? 'Sí' : 'No' }}</dd></div>
-      </dl>
-
-      <h3>Descripción</h3>
-      <p>{{ d.descripcion ?? 'Sin descripción.' }}</p>
-
-      <h3>Composición</h3>
-      <ul>
-        @for (m of d.composicion; track m.material) {
-          <li>{{ m.material }} · {{ m.porcentaje }}%</li>
-        }
-      </ul>
-
-      <h3>Tallas</h3>
-      <ul>
-        @for (t of d.tallas; track t.talla) {
-          <li>Talla {{ t.talla }} · stock {{ t.stock }}</li>
-        }
-      </ul>
-
-      <h3>Imágenes</h3>
-      <ul>
-        @for (url of d.imagenes; track url) {
-          <li>{{ url }}</li>
-        }
-      </ul>
-
-      <div class="detalle-acciones">
-        @if (envioPendiente()) {
-          <span class="alert alert-info" role="status">Aplicando decisión…</span>
-        } @else if (d.estadoModeracion === 'DESACTIVADA') {
-          <button type="button" class="btn-primary btn-inline" (click)="restaurar()">Restaurar</button>
-        } @else {
-          <button type="button" class="btn-primary btn-inline" (click)="aprobar()">Aprobar</button>
-          @if (!desactivando()) {
-            <button type="button" class="btn-ghost" (click)="abrirDesactivacion()">Desactivar</button>
-          }
+    }  @else if (seleccionada(); as d) {
+    <header class="detalle-cabecera">
+      <div>
+        <h2 id="detalle-titulo">{{ d.nombre }}</h2>
+        <p class="detalle-vendedor">
+          Vendedor: <strong>{{ d.vendedorEmail }}</strong>@if (d.vendedorTienda) { · {{ d.vendedorTienda }} }
+        </p>
+        @if (d.motivoModeracion) {
+          <p class="detalle-motivo">Motivo: {{ d.motivoModeracion }}</p>
         }
       </div>
+      <div class="detalle-cabecera-lado">
+          <span
+            class="state-chip"
+            [class.chip-SIN-REVISAR]="d.estadoModeracion === 'SIN_REVISAR'"
+            [class.chip-DESACTIVADA]="d.estadoModeracion === 'DESACTIVADA'"
+            [class.is-off]="d.estadoModeracion === 'APROBADA'"
+          >{{ etiquetasModeracion[d.estadoModeracion] }}</span>
+        <button type="button" class="btn-ghost" (click)="cerrarDetalle()">Cerrar detalle</button>
+      </div>
+    </header>
 
+    <div class="detalle-grid">
+      <section class="detalle-imagenes" aria-label="Imágenes de la prenda">
+        @if (d.imagenes.length > 0 && !imagenFallo()) {
+          <img
+            class="detalle-foto"
+            [src]="d.imagenes[imagenActiva()]"
+            [alt]="'Foto ' + (imagenActiva() + 1) + ' de ' + d.nombre"
+            (error)="imagenFallo.set(true)" />
+          @if (d.imagenes.length > 1) {
+            <div class="detalle-miniaturas">
+              @for (url of d.imagenes; track url; let i = $index) {
+                <button
+                  type="button"
+                  class="miniatura"
+                  [class.activa]="i === imagenActiva()"
+                  [attr.aria-label]="'Ver foto ' + (i + 1)"
+                  (click)="imagenActiva.set(i); imagenFallo.set(false)">
+                  <img [src]="url" alt="" loading="lazy" />
+                </button>
+              }
+            </div>
+          }
+        } @else {
+          <div class="detalle-foto detalle-foto-vacia">Sin imagen disponible</div>
+        }
+      </section>
+
+      <div class="detalle-info">
+        <section class="detalle-bloque">
+          <h3>Información general</h3>
+          <dl class="detalle-datos">
+            <div><dt>Categoría</dt><dd>{{ d.categoria }}</dd></div>
+            <div><dt>Género</dt><dd>{{ d.genero ?? '—' }}</dd></div>
+            <div><dt>Marca</dt><dd>{{ d.marca ?? '—' }}</dd></div>
+            <div><dt>Estampado</dt><dd>{{ d.estampado ?? '—' }}</dd></div>
+            <div><dt>Precio</dt><dd class="dato-precio">{{ precio(d.precio) }}</dd></div>
+            <div><dt>Cuidado</dt><dd>{{ d.instruccionesCuidado ?? '—' }}</dd></div>
+          </dl>
+        </section>
+
+        <section class="detalle-bloque">
+          <h3>Seguridad del material</h3>
+          <ul class="detalle-flags">
+            <li [class.flag-alerta]="d.tintesSinteticos"><span>Tintes sintéticos</span><strong>{{ d.tintesSinteticos ? 'Sí' : 'No' }}</strong></li>
+            <li [class.flag-alerta]="d.brochesMetalicos"><span>Broches metálicos</span><strong>{{ d.brochesMetalicos ? 'Sí' : 'No' }}</strong></li>
+            <li [class.flag-alerta]="d.contieneNiquel"><span>Contiene níquel</span><strong>{{ d.contieneNiquel ? 'Sí' : 'No' }}</strong></li>
+            <li [class.flag-alerta]="d.tratamientoFormaldehido"><span>Formaldehído</span><strong>{{ d.tratamientoFormaldehido ? 'Sí' : 'No' }}</strong></li>
+          </ul>
+        </section>
+
+        <section class="detalle-bloque">
+          <h3>Descripción</h3>
+          <p>{{ d.descripcion && d.descripcion.trim().length > 1 ? d.descripcion : 'Sin descripción.' }}</p>
+        </section>
+
+        <section class="detalle-bloque">
+          <h3>Composición</h3>
+          <ul class="detalle-composicion">
+            @for (m of d.composicion; track m.material) {
+              <li>{{ m.material }} · {{ m.porcentaje }}%</li>
+            }
+          </ul>
+        </section>
+
+        <section class="detalle-bloque">
+          <h3>Tallas</h3>
+          <table class="detalle-tabla">
+            <thead>
+            <tr>
+              <th scope="col">Talla</th>
+              <th scope="col">Stock</th>
+              <th scope="col">Estatura</th>
+              <th scope="col">Peso</th>
+            </tr>
+            </thead>
+            <tbody>
+              @for (t of d.tallas; track t.talla) {
+                <tr>
+                  <td>{{ t.talla }}</td>
+                  <td>{{ t.stock }}</td>
+                  <td>{{ t.estaturaMinCm }}–{{ t.estaturaMaxCm }} cm</td>
+                  <td>{{ t.pesoMinKg }}–{{ t.pesoMaxKg }} kg</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </div>
+
+    <div class="detalle-acciones">
+      @if (envioPendiente()) {
+        <span class="alert alert-info" role="status">Aplicando decisión…</span>
+      } @else if (d.estadoModeracion === 'DESACTIVADA') {
+        <button type="button" class="btn-primary" (click)="restaurar()">Restaurar</button>
+      } @else {
+        @if (!desactivando()) {
+          <button type="button" class="btn-ghost accion-desactivar" (click)="abrirDesactivacion()">Desactivar</button>
+        }
+        <button type="button" class="btn-primary" (click)="aprobar()">Aprobar</button>
+      }
+    </div>
       @if (desactivando()) {
         <div class="confirm-backdrop">
           <div class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="dialogo-desactivacion-titulo">

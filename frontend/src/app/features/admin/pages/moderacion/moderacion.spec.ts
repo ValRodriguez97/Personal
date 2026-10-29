@@ -126,7 +126,10 @@ describe('ModeracionPage (US-14)', () => {
     expect(detalle).toHaveBeenCalledWith(9);
     expect(el.textContent).toContain('Composición');
     expect(el.textContent).toContain('Algodón · 100%');
-    expect(el.textContent).toContain('Talla 4 · stock 3');
+    const celdas = el.querySelectorAll('.detalle-tabla tbody tr:first-child td');
+    expect(celdas[0].textContent?.trim()).toBe('4');
+    expect(celdas[1].textContent?.trim()).toBe('3');
+    expect(celdas[2].textContent).toContain('98–104 cm');
     expect(el.textContent).toContain('Broches metálicos');
   });
 

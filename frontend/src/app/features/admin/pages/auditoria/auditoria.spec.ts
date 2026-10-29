@@ -65,8 +65,26 @@ describe('AuditoriaPage (US-14)', () => {
     expect(el.textContent).toContain('admin@littlestyle.com');
     expect(el.textContent).toContain('ASIGNACION_VENDEDOR');
     expect(el.textContent).toContain('Éxito');
-    expect(el.querySelector('.hash-celda')?.textContent).toContain('1a2b3c4d5e6f…');
+    expect(el.querySelector('th:last-child')?.textContent).toContain('Motivo');
+    expect(el.textContent).not.toContain('1a2b3c4d5e6f7890');
+    expect(el.textContent).not.toContain('Hash');
     expect(el.querySelector('input[type="submit"]')).toBeNull();
+  });
+
+  it('muestra una sola fila por cada registro al desactivar una prenda', () => {
+    respuesta.contenido = [{
+      ...registro,
+      accion: 'DESACTIVAR_PRODUCTO',
+      tipoEntidad: 'PRENDA',
+      valorAnterior: 'APROBADA',
+      valorNuevo: 'DESACTIVADA',
+    }];
+    const { el } = crear();
+
+    expect(el.querySelectorAll('.catalog-table tbody tr')).toHaveLength(1);
+    expect(el.textContent).toContain('Desactivar producto');
+    expect(el.textContent).toContain('APROBADA');
+    expect(el.textContent).toContain('DESACTIVADA');
   });
 
   it('aplica los filtros de auditoría', () => {

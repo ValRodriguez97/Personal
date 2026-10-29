@@ -39,11 +39,26 @@ import { AuditoriaService } from '../../services/auditoria.service';
       color: var(--ls-muted);
       font-size: 0.9rem;
     }
-    .hash-celda {
-      font-family: monospace;
-      font-size: 0.78rem;
-      color: var(--ls-muted);
-      word-break: break-all;
+    .auditoria-table {
+      min-width: 900px;
+      table-layout: fixed;
+    }
+    .auditoria-table th:nth-child(1),
+    .auditoria-table td:nth-child(1) { width: 15%; }
+    .auditoria-table th:nth-child(2),
+    .auditoria-table td:nth-child(2) { width: 18%; overflow-wrap: anywhere; }
+    .auditoria-table th:nth-child(3),
+    .auditoria-table td:nth-child(3) { width: 17%; overflow-wrap: anywhere; }
+    .auditoria-table th:nth-child(4),
+    .auditoria-table td:nth-child(4) { width: 12%; }
+    .auditoria-table th:nth-child(5),
+    .auditoria-table td:nth-child(5) { width: 15%; }
+    .auditoria-table th:nth-child(6),
+    .auditoria-table td:nth-child(6) { width: 10%; }
+    .auditoria-table th:nth-child(7),
+    .auditoria-table td:nth-child(7) { width: 13%; overflow-wrap: anywhere; }
+    .auditoria-table td:nth-child(5) {
+      overflow-wrap: anywhere;
     }
     .chip-FALLO {
       background: var(--ls-error-soft);
@@ -228,19 +243,6 @@ export class AuditoriaPage implements OnInit {
         this.integridadCargando.set(false);
       },
     });
-  }
-
-  /**
-   * Recorta un hash para presentarlo en la tabla sin romper el ancho.
-   * @param hash Hash completo del registro.
-   * @returns Versión recortada con elipsis.
-   */
-  protected hashCorto(hash: string): string {
-    return hash.length > 12 ? `${hash.slice(0, 12)}…` : hash;
-  }
-
-  protected copiarHash(hash: string): void {
-    void navigator.clipboard?.writeText(hash);
   }
 
   protected etiquetaAccion(accion: string): string {

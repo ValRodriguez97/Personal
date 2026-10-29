@@ -80,7 +80,9 @@ describe('IncidenciasAdminPage (US-14)', () => {
 
   it('toma una incidencia abierta y pasa a revisión', () => {
     const { fixture, el } = crear();
-    el.querySelector<HTMLButtonElement>('tbody .btn-soft')!.click();
+    const acciones = el.querySelector<HTMLSelectElement>('.acciones-select')!;
+    acciones.value = 'TOMAR';
+    acciones.dispatchEvent(new Event('change'));
     fixture.detectChanges();
 
     expect(tomar).toHaveBeenCalledWith(4);
@@ -91,7 +93,10 @@ describe('IncidenciasAdminPage (US-14)', () => {
   it('resuelve con una respuesta y recarga la bandeja', () => {
     respuesta.contenido = [{ ...incidencia, estado: 'EN_REVISION' }];
     const { fixture, el } = crear();
-    el.querySelector<HTMLButtonElement>('tbody .btn-soft')!.click();
+    const acciones = el.querySelector<HTMLSelectElement>('.acciones-select')!;
+    expect(Array.from(acciones.options).map((option) => option.value)).toEqual(['', 'RESOLVER']);
+    acciones.value = 'RESOLVER';
+    acciones.dispatchEvent(new Event('change'));
     fixture.detectChanges();
 
     escribir(el.querySelector<HTMLTextAreaElement>('#respuesta-incidencia')!, 'Reactivamos tu cuenta y enviamos el aviso.');
@@ -105,9 +110,12 @@ describe('IncidenciasAdminPage (US-14)', () => {
   });
 
   it('exige respuesta de al menos 10 caracteres para decidir', () => {
-    respuesta.contenido = [{ ...incidencia, estado: 'EN_REVISION' }];
+    respuesta.contenido = [{ ...incidencia, estado: 'ABIERTA' }];
     const { fixture, el } = crear();
-    el.querySelector<HTMLButtonElement>('tbody .btn-ghost')!.click();
+    const acciones = el.querySelector<HTMLSelectElement>('.acciones-select')!;
+    expect(Array.from(acciones.options).map((option) => option.value)).toEqual(['', 'TOMAR', 'RECHAZAR']);
+    acciones.value = 'RECHAZAR';
+    acciones.dispatchEvent(new Event('change'));
     fixture.detectChanges();
 
     el.querySelector<HTMLButtonElement>('.confirm-actions .btn-primary')!.click();

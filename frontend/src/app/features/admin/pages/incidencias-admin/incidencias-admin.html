@@ -111,11 +111,21 @@
                   >{{ etiquetasEstado[i.estado] }}</span>
                 </td>
                 <td class="celda-accion">
-                  @if (i.estado === 'ABIERTA') {
-                    <button type="button" class="btn-soft" [disabled]="enviando()" (click)="tomar(i)">Tomar</button>
-                  } @else if (i.estado === 'EN_REVISION') {
-                    <button type="button" class="btn-soft" (click)="abrirDialogo(i, 'RESOLVER')" [attr.aria-label]="'Resolver la incidencia ' + i.id">Resolver</button>
-                    <button type="button" class="btn-ghost" (click)="abrirDialogo(i, 'RECHAZAR')" [attr.aria-label]="'Rechazar la incidencia ' + i.id">Rechazar</button>
+                  @if (i.estado === 'ABIERTA' || i.estado === 'EN_REVISION') {
+                    <select
+                      class="acciones-select"
+                      [attr.aria-label]="'Acciones para la incidencia ' + i.id"
+                      [disabled]="enviando()"
+                      (change)="ejecutarAccion(i, $event)"
+                    >
+                      <option value="" selected>Elegir acción</option>
+                      @if (i.estado === 'ABIERTA') {
+                        <option value="TOMAR">Tomar</option>
+                        <option value="RECHAZAR">Rechazar</option>
+                      } @else {
+                        <option value="RESOLVER">Resolver</option>
+                      }
+                    </select>
                   } @else {
                     <span class="muted-cell" aria-label="Incidencia cerrada">—</span>
                   }
