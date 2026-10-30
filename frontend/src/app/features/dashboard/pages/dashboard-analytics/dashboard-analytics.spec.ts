@@ -6,6 +6,9 @@ import { DashboardAnalyticsPage } from './dashboard-analytics';
 import { DashboardAnalyticsService } from '../../services/dashboard-analytics.service';
 import { AuthService } from '../../../../core/services/auth.service';
 
+const chartConstructor = vi.hoisted(() => vi.fn());
+vi.mock('chart.js/auto', () => ({ default: chartConstructor }));
+
 describe('DashboardAnalyticsPage', () => {
   let component: DashboardAnalyticsPage;
   let fixture: ComponentFixture<DashboardAnalyticsPage>;
@@ -63,6 +66,21 @@ describe('DashboardAnalyticsPage', () => {
     expect(serviceSpy.consultar).toHaveBeenCalled();
   });
 
+  it('no ofrece período personalizado y mantiene funcional el rango de fechas', () => {
+    const opcionesPeriodo = Array.from(
+      fixture.nativeElement.querySelectorAll('select option'),
+      (option: HTMLOptionElement) => option.value,
+    );
+    expect(opcionesPeriodo).not.toContain('PERSONALIZADO');
+
+    component.fechaDesde = '2026-10-01';
+    component.fechaHasta = '2026-10-28';
+    component.onFechaManualChange();
+
+    expect(component.periodoSeleccionado).toBe('30_DIAS');
+    expect(serviceSpy.consultar).toHaveBeenLastCalledWith('2026-10-01', '2026-10-28', undefined);
+  });
+
   it('presenta los importes en pesos colombianos y detalla ventas al filtrar una categoría', () => {
     expect(component.formatCurrency(12000)).toBe('COP $ 12.000');
     component.categoriaSeleccionada = 'VESTIDOS';
@@ -70,5 +88,36 @@ describe('DashboardAnalyticsPage', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Ventas por prenda');
     expect(fixture.nativeElement.textContent).toContain('Ingresos por prenda en Vestidos');
+  });
+
+  it('crea los dos gráficos para las series recibidas del dashboard', async () => {
+    chartConstructor.mockClear();
+    chartConstructor.mockImplementation(function () {
+      return { destroy: vi.fn() };
+    });
+    component.overviewData.set({ ...mockDashboardData });
+    fixture.detectChanges();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const llamadas = chartConstructor.mock.calls.slice(-2);
+    expect(llamadas).toHaveLength(2);
+    expect(llamadas[0][0]).toBeInstanceOf(HTMLCanvasElement);
+    expect(llamadas[0][1].data.datasets[0].data).toEqual([800]);
+    expect(llamadas[1][1].data.datasets[0].data).toEqual([12]);
+  });
+
+  it('envía la categoría seleccionada y solicita de nuevo las métricas', () => {
+    component.onCategoriaChange('VESTIDOS');
+
+    expect(serviceSpy.consultar).toHaveBeenLastCalledWith(
+      component.startDate(),
+      component.endDate(),
+      'VESTIDOS',
+    );
+    expect(serviceSpy.consultarTopMasConsultados).toHaveBeenLastCalledWith(
+      component.startDate(),
+      component.endDate(),
+      'VESTIDOS',
+    );
   });
 });

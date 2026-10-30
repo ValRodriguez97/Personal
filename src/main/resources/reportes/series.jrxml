@@ -44,13 +44,13 @@
     </title>
     <columnHeader height="24">
         <element kind="staticText" x="0" y="0" width="335" height="24" fontSize="8.5" bold="true" forecolor="#FFFFFF" backcolor="#14532D" mode="Opaque" vTextAlign="Middle">
-            <text><![CDATA[  Concepto]]></text>
+            <text><![CDATA[  Producto o indicador]]></text>
         </element>
         <element kind="staticText" x="335" y="0" width="95" height="24" fontSize="8.5" bold="true" forecolor="#FFFFFF" backcolor="#14532D" mode="Opaque" hTextAlign="Right" vTextAlign="Middle">
             <text><![CDATA[Cantidad  ]]></text>
         </element>
         <element kind="staticText" x="430" y="0" width="125" height="24" fontSize="8.5" bold="true" forecolor="#FFFFFF" backcolor="#14532D" mode="Opaque" hTextAlign="Right" vTextAlign="Middle">
-            <text><![CDATA[Detalle  ]]></text>
+            <text><![CDATA[Valor / detalle  ]]></text>
         </element>
     </columnHeader>
     <detail>

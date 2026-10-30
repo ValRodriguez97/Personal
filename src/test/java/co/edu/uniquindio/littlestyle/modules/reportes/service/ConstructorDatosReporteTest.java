@@ -60,6 +60,8 @@ class ConstructorDatosReporteTest {
         assertThat(datos.nombreArchivo()).startsWith("reporte-ventas_");
         assertThat(datos.filas()).anySatisfy(f -> assertThat(f.get("etiqueta")).isEqualTo("Ventas totales"));
         assertThat(datos.filas()).anySatisfy(f -> assertThat(f.get("etiqueta")).isEqualTo("Vestido floral"));
+        assertThat(datos.filas()).noneSatisfy(f -> assertThat(f.get("seccion")).isEqualTo("Ventas por categoría"));
+        assertThat(datos.filas()).hasSize(4);
         assertThat(datos.parametros()).containsEntry("GENERADO_POR", "Vendedor");
         assertThat(datos.parametros()).containsEntry("ALCANCE", "Tienda del vendedor");
     }
@@ -83,25 +85,18 @@ class ConstructorDatosReporteTest {
                 List.of(new DashboardSerieResponse("4T", new BigDecimal("240000"), 12L)),
                 List.of(),
                 List.of(new DashboardDemandaDetalleResponse("Vestido floral", "4T", 12L, new BigDecimal("240000")))));
-        when(dashboard.obtenerProductosMasConsultados(any(), any(), isNull(), eq(7L))).thenReturn(
-                List.of(new DashboardSerieResponse("Vestido floral", BigDecimal.ZERO, 5L)));
-
         ReporteDatos datos = constructor.construir(
                 new SolicitudReporte(TipoReporte.DEMANDA, FormatoReporte.PDF, null, null, null), 7L, vendedor);
 
         assertThat(datos.filas()).anySatisfy(f -> {
-            assertThat(f.get("seccion")).isEqualTo("Demanda por talla");
-            assertThat(f.get("etiqueta")).isEqualTo("Talla 4T");
-            assertThat(f.get("cantidad")).isEqualTo("12");
-            assertThat(f.get("valor")).isEqualTo("COP $ 240.000");
-        });
-        assertThat(datos.filas()).anySatisfy(f -> {
-            assertThat(f.get("seccion")).isEqualTo("Prendas y tallas más pedidas");
+            assertThat(f.get("seccion")).isEqualTo("Demanda por prenda y talla");
             assertThat(f.get("etiqueta")).isEqualTo("Vestido floral");
+            assertThat(f.get("cantidad")).isEqualTo("12");
             assertThat(f.get("valor")).isEqualTo("Talla 4T · COP $ 240.000");
         });
-        assertThat(datos.filas()).anySatisfy(f -> assertThat(f.get("etiqueta")).isEqualTo("Vestido floral"));
-        assertThat((String) datos.parametros().get("SUBTITULO")).contains("Mi tienda");
+        assertThat(datos.filas()).hasSize(1);
+        assertThat((String) datos.parametros().get("SUBTITULO")).doesNotContain("Mi tienda");
+        assertThat(datos.parametros()).containsEntry("ALCANCE", "Tienda del vendedor");
     }
 
     @Test
@@ -114,8 +109,9 @@ class ConstructorDatosReporteTest {
 
         when(inventarioRepository.filasInventario(eq(EstadoPrenda.ACTIVA), eq(7L), eq(CategoriaPrenda.VESTIDOS)))
                 .thenReturn(List.of());
-        constructor.construir(
+        ReporteDatos datosInventario = constructor.construir(
                 new SolicitudReporte(TipoReporte.INVENTARIO, FormatoReporte.PDF, null, null, "VESTIDOS"), 7L, vendedor);
+        assertThat((String) datosInventario.parametros().get("SUBTITULO")).contains("Vestidos");
     }
 
     @Test
@@ -129,7 +125,8 @@ class ConstructorDatosReporteTest {
 
         assertThat(datos.filas()).hasSize(2);
         assertThat(datos.filas().get(1).get("nivel")).isEqualTo("Sin mínimo");
-        assertThat((String) datos.parametros().get("SUBTITULO")).contains("Tallas con stock bajo: 1");
+        assertThat((String) datos.parametros().get("SUBTITULO"))
+                .isEqualTo("Existencias activas por prenda y talla · Todas las categorías");
         assertThat(datos.parametros()).containsEntry("TOTAL_UNIDADES", "52").containsEntry("TOTAL_BAJOS", "1");
     }
 

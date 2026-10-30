@@ -11,8 +11,9 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Chart } from 'chart.js';
-import { forkJoin } from 'rxjs';
+import Chart from 'chart.js/auto';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, catchError, forkJoin, of, switchMap, tap } from 'rxjs';
 
 import {
   CATEGORIAS_DASHBOARD,
@@ -64,7 +65,6 @@ const COMPACTO_CO = new Intl.NumberFormat('es-CO', { notation: 'compact', maximu
               <option value="30_DIAS">Últimos 30 días</option>
               <option value="MES_ACTUAL">Este mes</option>
               <option value="6_MESES">Últimos 6 meses</option>
-              <option value="PERSONALIZADO">Personalizado</option>
             </select>
           </label>
 
@@ -80,7 +80,7 @@ const COMPACTO_CO = new Intl.NumberFormat('es-CO', { notation: 'compact', maximu
 
           <label class="field">
             <span>Categoría</span>
-            <select [(ngModel)]="categoriaSeleccionada" (change)="cargarDatosDashboard()">
+            <select [ngModel]="categoriaSeleccionada" (ngModelChange)="onCategoriaChange($event)">
               <option value="TODAS">Todas las categorías</option>
               @for (cat of categorias; track cat.valor) {
                 <option [value]="cat.valor">{{ cat.etiqueta }}</option>
@@ -100,6 +100,10 @@ const COMPACTO_CO = new Intl.NumberFormat('es-CO', { notation: 'compact', maximu
           <p class="inline-error" role="alert">{{ errorFechas() }}</p>
         }
       </section>
+
+      @if (errorGraficos()) {
+        <p class="inline-error" role="alert">{{ errorGraficos() }}</p>
+      }
 
       <section class="panel" aria-labelledby="exportar-titulo">
         <div class="panel-head">
@@ -197,7 +201,7 @@ const COMPACTO_CO = new Intl.NumberFormat('es-CO', { notation: 'compact', maximu
                   </tr>
                 </thead>
                 <tbody>
-                  @for (item of demandaDetalle(); track item.prenda + '-' + item.talla) {
+                  @for (item of demandaDetalle(); track $index) {
                     <tr>
                       <td>{{ item.prenda }}</td>
                       <td><span class="size-chip">{{ item.talla }}</span></td>
@@ -223,7 +227,7 @@ const COMPACTO_CO = new Intl.NumberFormat('es-CO', { notation: 'compact', maximu
                 </div>
               </header>
               <ul class="product-list">
-                @for (item of productosPopulares(); track item.label) {
+                @for (item of productosPopulares(); track $index) {
                   <li>
                     <span class="product-name">{{ item.label }}</span>
                     <span class="product-meta">{{ formatNumber(item.cantidad) }} uds · {{ formatCurrency(item.value) }}</span>
@@ -242,7 +246,7 @@ const COMPACTO_CO = new Intl.NumberFormat('es-CO', { notation: 'compact', maximu
                 </div>
               </header>
               <ul class="product-list">
-                @for (item of masConsultados(); track item.label) {
+                @for (item of masConsultados(); track $index) {
                   <li>
                     <span class="product-name">{{ item.label }}</span>
                     <span class="product-meta">{{ formatNumber(item.cantidad) }} pedidos</span>
@@ -719,6 +723,7 @@ export class DashboardAnalyticsPage implements OnInit, OnDestroy {
   readonly cargando = signal(true);
   readonly error = signal('');
   readonly errorFechas = signal('');
+  readonly errorGraficos = signal('');
   readonly esVendedor = signal(false);
 
   readonly ventasCategoria = computed(() => this.overviewData()?.ventasPorCategoria ?? []);
@@ -738,8 +743,44 @@ export class DashboardAnalyticsPage implements OnInit, OnDestroy {
   private ventasChart?: Chart;
   private demandaChart?: Chart;
 
+  private readonly recarga$ = new Subject<void>();
+
   constructor() {
     this.inicializarFechas();
+
+    this.recarga$
+      .pipe(
+        tap(() => {
+          this.cargando.set(true);
+          this.error.set('');
+        }),
+        // switchMap cancela la petición anterior: solo cuenta el último filtro aplicado
+        switchMap(() => {
+          const categoria =
+            this.categoriaSeleccionada === 'TODAS' ? undefined : this.categoriaSeleccionada;
+          return forkJoin({
+            overview: this.dashboardService.consultar(this.startDate(), this.endDate(), categoria),
+            masConsultados: this.dashboardService.consultarTopMasConsultados(
+              this.startDate(), this.endDate(), categoria),
+          }).pipe(
+            catchError((err: unknown) => {
+              this.overviewData.set(null);
+              this.masConsultados.set([]);
+              this.error.set(this.mensajeError(err));
+              this.cargando.set(false);
+              return of(null);
+            }),
+          );
+        }),
+        takeUntilDestroyed(),
+      )
+      .subscribe((res) => {
+        if (!res) return;
+        this.overviewData.set(res.overview);
+        this.masConsultados.set(res.masConsultados);
+        this.cargando.set(false);
+      });
+
     effect(() => {
       const overview = this.overviewData();
       if (this.cargando() || !overview) return;
@@ -774,7 +815,6 @@ export class DashboardAnalyticsPage implements OnInit, OnDestroy {
       this.errorFechas.set('La fecha inicial no puede ser posterior a la final.');
       return;
     }
-    this.periodoSeleccionado = 'PERSONALIZADO';
     this.errorFechas.set('');
     this.startDate.set(this.fechaDesde);
     this.endDate.set(this.fechaHasta);
@@ -791,31 +831,12 @@ export class DashboardAnalyticsPage implements OnInit, OnDestroy {
 
   cargarDatosDashboard(): void {
     if (!this.startDate() || !this.endDate()) return;
-    this.cargando.set(true);
-    this.error.set('');
+    this.recarga$.next();
+  }
 
-    const categoria = this.categoriaSeleccionada === 'TODAS' ? undefined : this.categoriaSeleccionada;
-
-    forkJoin({
-      overview: this.dashboardService.consultar(this.startDate(), this.endDate(), categoria),
-      masConsultados: this.dashboardService.consultarTopMasConsultados(
-        this.startDate(),
-        this.endDate(),
-        categoria,
-      ),
-    }).subscribe({
-      next: ({ overview, masConsultados }) => {
-        this.overviewData.set(overview);
-        this.masConsultados.set(masConsultados);
-        this.cargando.set(false);
-      },
-      error: (err: unknown) => {
-        this.overviewData.set(null);
-        this.masConsultados.set([]);
-        this.error.set(this.mensajeError(err));
-        this.cargando.set(false);
-      },
-    });
+  onCategoriaChange(valor: string): void {
+    this.categoriaSeleccionada = valor;
+    this.cargarDatosDashboard();
   }
 
   formatCurrency(value: number): string {
@@ -855,12 +876,6 @@ export class DashboardAnalyticsPage implements OnInit, OnDestroy {
       case '6_MESES':
         desde = new Date(hoy.getFullYear(), hoy.getMonth() - 6, hoy.getDate());
         break;
-      case 'PERSONALIZADO':
-        if (this.fechaDesde && this.fechaHasta) {
-          this.startDate.set(this.fechaDesde);
-          this.endDate.set(this.fechaHasta);
-        }
-        return;
       default:
         desde = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 30);
         break;
@@ -874,6 +889,7 @@ export class DashboardAnalyticsPage implements OnInit, OnDestroy {
 
   private renderCharts(overview: DashboardOverview): void {
     this.destruirGraficos();
+    this.errorGraficos.set('');
 
     const ventas =
       this.categoriaSeleccionada === 'TODAS' ? overview.ventasPorCategoria ?? [] : overview.productosPopulares ?? [];
@@ -882,9 +898,13 @@ export class DashboardAnalyticsPage implements OnInit, OnDestroy {
     try {
       this.crearGraficoVentas(ventas);
       this.crearGraficoDemanda(demanda);
-    } catch {
-      // Entornos sin canvas (SSR o pruebas): los datos siguen visibles en las tablas.
+    } catch (error: unknown) {
       this.destruirGraficos();
+      this.errorGraficos.set(
+        error instanceof Error && error.message
+          ? `No se pudieron mostrar los gráficos: ${error.message}`
+          : 'No se pudieron mostrar los gráficos. Los datos detallados siguen disponibles.',
+      );
     }
   }
 
@@ -994,4 +1014,5 @@ export class DashboardAnalyticsPage implements OnInit, OnDestroy {
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   }
+
 }

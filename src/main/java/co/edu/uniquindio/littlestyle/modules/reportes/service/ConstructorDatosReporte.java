@@ -5,7 +5,6 @@ import co.edu.uniquindio.littlestyle.modules.catalogocompras.catalogo.model.Cate
 import co.edu.uniquindio.littlestyle.modules.catalogocompras.catalogo.model.EstadoPrenda;
 import co.edu.uniquindio.littlestyle.modules.catalogocompras.inventario.model.NivelStock;
 import co.edu.uniquindio.littlestyle.modules.dashboard.dto.DashboardOverviewResponse;
-import co.edu.uniquindio.littlestyle.modules.dashboard.dto.DashboardSerieResponse;
 import co.edu.uniquindio.littlestyle.modules.dashboard.service.DashboardAnalyticsService;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.InventarioFila;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.ReporteDatos;
@@ -63,54 +62,33 @@ public class ConstructorDatosReporte {
         List<Map<String, ?>> filas = new ArrayList<>();
         filas.add(fila("Indicadores clave", "Ventas totales", "", moneda(r.totalVentas())));
         filas.add(fila("Indicadores clave", "Pedidos", entero(r.totalPedidos()), ""));
-        filas.add(fila("Indicadores clave", "Unidades vendidas", entero(r.productosVendidos()), ""));
         filas.add(fila("Indicadores clave", "Ticket promedio", "", moneda(r.ticketPromedio())));
-        filas.add(fila("Indicadores clave", "Tallas con stock bajo", entero(r.stockBajo()), ""));
 
-        r.ventasPorCategoria().forEach(x ->
-                filas.add(fila("Ventas por categoría", legible(x.label()), entero(x.cantidad()), moneda(x.value()))));
         r.productosPopulares().forEach(x ->
-                filas.add(fila("Detalle de ventas por prenda", x.label(), entero(x.cantidad()), moneda(x.value()))));
-        if (r.ventasPorCategoria().isEmpty() && r.productosPopulares().isEmpty()) {
+                filas.add(fila("Ventas por prenda", x.label(), entero(x.cantidad()), moneda(x.value()))));
+        if (r.productosPopulares().isEmpty()) {
             filas.add(fila("Resumen", "Sin ventas registradas en el período", "", ""));
         }
         validarLimite(filas);
         return datos(TipoReporte.VENTAS, "reporte-ventas_" + p.desde() + "_" + p.hasta(),
-                subtitulo(p, categoria, vendedorId), vendedorId, u, filas);
+                subtitulo(p, categoria), vendedorId, u, filas);
     }
 
     private ReporteDatos demanda(SolicitudReporte s, CategoriaPrenda categoria, Long vendedorId, AuthenticatedUser u) {
         Periodo p = Periodo.de(s.startDate(), s.endDate());
         DashboardOverviewResponse r = dashboard.obtenerResumen(p.desde(), p.hasta(), categoria, vendedorId);
-        List<DashboardSerieResponse> masConsultados =
-                dashboard.obtenerProductosMasConsultados(p.desde(), p.hasta(), categoria, vendedorId);
 
         List<Map<String, ?>> filas = new ArrayList<>();
-        filas.add(fila("Indicadores clave", "Unidades vendidas", entero(r.productosVendidos()), ""));
-        filas.add(fila("Indicadores clave", "Pedidos", entero(r.totalPedidos()), ""));
-        filas.add(fila("Indicadores clave", "Ventas del período", "", moneda(r.totalVentas())));
-
-        r.demandaPorTalla().forEach(x ->
-                filas.add(fila("Demanda por talla", "Talla " + x.label(), entero(x.cantidad()), moneda(x.value()))));
-
-        // El valor agregado por prenda y talla completa el análisis de demanda con ingresos en COP.
         r.demandaDetalle().forEach(x ->
-                filas.add(fila("Prendas y tallas más pedidas", x.prenda(), entero(x.unidades()),
+                filas.add(fila("Demanda por prenda y talla", x.prenda(), entero(x.unidades()),
                         "Talla " + x.talla() + " · " + moneda(x.valor()))));
 
-        masConsultados.forEach(x ->
-                filas.add(fila("Productos más solicitados", x.label(), entero(x.cantidad()), "")));
-
-        r.busquedasMasFrecuentes().forEach(x ->
-                filas.add(fila("Palabras más buscadas", x.label(), entero(x.cantidad()), "")));
-
-        if (r.demandaPorTalla().isEmpty() && r.demandaDetalle().isEmpty()
-                && masConsultados.isEmpty() && r.busquedasMasFrecuentes().isEmpty()) {
+        if (r.demandaDetalle().isEmpty()) {
             filas.add(fila("Resumen", "Sin actividad registrada en el período", "", ""));
         }
         validarLimite(filas);
         return datos(TipoReporte.DEMANDA, "reporte-demanda_" + p.desde() + "_" + p.hasta(),
-                subtitulo(p, categoria, vendedorId), vendedorId, u, filas);
+                subtitulo(p, categoria), vendedorId, u, filas);
     }
 
     private ReporteDatos inventario(CategoriaPrenda categoria, Long vendedorId, AuthenticatedUser u) {
@@ -140,9 +118,8 @@ public class ConstructorDatosReporte {
             m.put("nivel", nivel);
             filas.add(m);
         }
-        String alcance = vendedorId == null ? "Toda la plataforma" : "Mi tienda";
-        String sub = "%s · Corte: %s · Unidades: %s · Tallas con stock bajo: %s".formatted(
-                alcance, LocalDateTime.now().format(FECHA_HORA), entero(unidades), entero(bajos));
+        String cat = categoria == null ? "Todas las categorías" : legible(categoria.name());
+        String sub = "Existencias activas por prenda y talla · %s".formatted(cat);
         return datos(TipoReporte.INVENTARIO, "reporte-inventario_" + LocalDate.now(), sub, vendedorId, u, filas,
                 Map.of("TOTAL_UNIDADES", entero(unidades), "TOTAL_BAJOS", entero(bajos)));
     }
@@ -168,10 +145,9 @@ public class ConstructorDatosReporte {
         return new ReporteDatos(tipo, tipo.getTitulo(), nombre, params, filas);
     }
 
-    private static String subtitulo(Periodo p, CategoriaPrenda categoria, Long vendedorId) {
-        String alcance = vendedorId == null ? "Toda la plataforma" : "Mi tienda";
+    private static String subtitulo(Periodo p, CategoriaPrenda categoria) {
         String cat = categoria == null ? "Todas las categorías" : legible(categoria.name());
-        return "%s · Del %s al %s · %s".formatted(alcance, p.desde().format(FECHA), p.hasta().format(FECHA), cat);
+        return "Del %s al %s · %s".formatted(p.desde().format(FECHA), p.hasta().format(FECHA), cat);
     }
 
     private static Map<String, ?> fila(String seccion, String etiqueta, String cantidad, String valor) {
