@@ -84,12 +84,15 @@ no se distorsiona con errores del usuario.
 - Resultado esperado:
   - `200` con `Content-Disposition: attachment`, `Content-Length`,
     `X-Content-Type-Options: nosniff` y `Cache-Control: no-store`;
+  - CORS expone `Content-Disposition` y `Content-Length` al frontend y Caddy no comprime
+    `/api/v1/reportes/*` (comprimir elimina `Content-Length`);
   - `TipoMedia` correcto para PDF, XLSX y CSV y nombre de archivo con la extensión del formato;
   - `400` sin invocar la generación cuando tipo, formato o resultado de telemetría no existen;
   - `401` sin autenticación, `403` para `CLIENTE` y para la métrica consultada por no administrador;
   - telemetría delegada en `ReporteMetricas` y métrica de éxito solo para administrador.
-- Evidencia: `ReporteControllerTest` (contrato y extensión) y `ReporteControllerSecurityTest`
-  (cadena real de Spring Security con `@WebMvcTest`).
+- Evidencia: `ReporteControllerTest` (contrato y extensión), `ReporteControllerSecurityTest`
+  (cadena real de Spring Security con `@WebMvcTest`) y `SecurityConfigCorsTest` (cabeceras
+  expuestas).
 
 ### CP-06 — Alcance por rol
 
@@ -156,8 +159,8 @@ no se distorsiona con errores del usuario.
   - el progreso es real con `Content-Length` e indeterminado sin él;
   - el nombre por defecto usa la extensión del formato;
   - antes de entregar el archivo se valida la firma del blob: `%PDF-` para PDF, `PK` para XLSX y
-    texto no vacío (con BOM opcional) para CSV; un HTML o JSON de error disfrazado no se descarga y
-    se reporta `error_cliente`;
+    texto no vacío que no empiece por `<`, `{` o `[` para CSV (con BOM opcional); un HTML o JSON de
+    error disfrazado no se descarga y se reporta `error_cliente`;
   - `ok` se reporta solo tras validar y entregar el archivo, con motivo
     `archivo_validado_entregado` (o `archivo_validado_impreso` al imprimir); no afirma que se guardó
     en disco;

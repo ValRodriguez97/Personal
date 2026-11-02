@@ -73,7 +73,9 @@ Respuesta correcta: `200` con el archivo como adjunto. Cabeceras:
 - `Content-Type` del formato (`application/pdf`,
   `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `text/csv;charset=UTF-8`).
 - `Content-Disposition: attachment; filename*=UTF-8''...`.
-- `Content-Length` para que Angular muestre progreso real.
+- `Content-Length` para que Angular muestre progreso real. CORS lo expone junto con
+  `Content-Disposition` (`Access-Control-Expose-Headers`), y Caddy no comprime
+  `/api/v1/reportes/*`: al comprimir se pierde `Content-Length` y la barra quedaría indeterminada.
 - `X-Content-Type-Options: nosniff` y `Cache-Control: no-store`.
 
 Errores:

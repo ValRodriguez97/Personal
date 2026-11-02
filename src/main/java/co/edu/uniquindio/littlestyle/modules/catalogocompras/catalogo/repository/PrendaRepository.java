@@ -150,6 +150,9 @@ public interface PrendaRepository extends JpaRepository<Prenda, Long> {
             """)
     Optional<Prenda> findByIdAndEstado(@Param("id") Long id, @Param("estado") EstadoPrenda estado);
 
+    /** Si la prenda pertenece a ese vendedor; el dashboard lo usa para no contar las vistas del propio dueño. */
+    boolean existsByIdAndVendedorId(Long id, Long vendedorId);
+
     /**
      * Paso 2 de la paginación en dos pasos: trae las tallas de la página ya
      * calculada. La composición e imágenes quedan con {@code @BatchSize}
@@ -225,8 +228,20 @@ public interface PrendaRepository extends JpaRepository<Prenda, Long> {
     @Query("select p from Prenda p join fetch p.vendedor where p.id = :id")
     Optional<Prenda> buscarParaNotificacion(@Param("id") Long id);
 
-    /** KPIs del resumen: prendas por estado de moderacion y publicadas (ACTIVA + APROBADA). */
+    /** KPIs del resumen: prendas por estado de moderacion. */
     long countByEstadoModeracion(EstadoModeracion estadoModeracion);
 
-    long countByEstadoAndEstadoModeracion(EstadoPrenda estado, EstadoModeracion estadoModeracion);
+    /**
+     * KPIs del resumen: prendas publicadas con la misma regla de visibilidad que
+     * {@code findAllByEstado}, pero sin exigir vendedor activo porque el KPI mide el estado de
+     * publicacion. Incluye las {@code SIN_REVISAR} (la moderacion es posterior a la publicacion)
+     * y las de moderacion nula previas a US-14; solo excluye las {@code DESACTIVADA}.
+     */
+    @Query("""
+            select count(p) from Prenda p
+            where p.estado = co.edu.uniquindio.littlestyle.modules.catalogocompras.catalogo.model.EstadoPrenda.ACTIVA
+              and (p.estadoModeracion is null or
+                   p.estadoModeracion <> co.edu.uniquindio.littlestyle.modules.catalogocompras.catalogo.model.EstadoModeracion.DESACTIVADA)
+            """)
+    long countPrendasPublicadas();
 }

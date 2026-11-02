@@ -41,7 +41,10 @@ límite de filas, la plantilla propia de cada reporte y la **medición auditable
   - Query: `formato` (`PDF` por defecto, `XLSX`, `CSV`; también acepta la extensión en minúsculas),
     `startDate`, `endDate` (`yyyy-MM-dd`) y `categoria` (nombre del enum `CategoriaPrenda`).
   - Respuesta: archivo binario como adjunto, con `Content-Type` del formato,
-    `Content-Length` para la barra de progreso, `X-Content-Type-Options: nosniff` y `Cache-Control: no-store`.
+    `Content-Disposition`, `Content-Length` para la barra de progreso,
+    `X-Content-Type-Options: nosniff` y `Cache-Control: no-store`. CORS expone
+    `Content-Disposition` y `Content-Length` al frontend, y Caddy no comprime `/api/v1/reportes/*`
+    para que `Content-Length` sobreviva.
   - Errores: `400` por tipo, formato, fecha o categoría inválidos; `401/403` por rol;
     `422` cuando el reporte supera 5 000 filas; `500` si falla la generación.
 - `POST /api/v1/reportes/telemetria`
@@ -140,5 +143,5 @@ Comandos de verificación:
 cd frontend && npm test -- --watch=false
 ```
 
-Resultado de la última ejecución: **520 pruebas backend sin fallos** y **54 archivos / 287 pruebas
+Resultado de la última ejecución: **521 pruebas backend sin fallos** y **54 archivos / 289 pruebas
 frontend aprobadas**.

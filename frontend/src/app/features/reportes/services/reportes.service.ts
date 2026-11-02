@@ -31,8 +31,22 @@ const FIRMA_PDF = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
 const FIRMA_XLSX = [0x50, 0x4b]; // "PK": todo OOXML es un ZIP
 const BOM_UTF8 = [0xef, 0xbb, 0xbf];
 
+/** Primeros bytes que delatan una página de error: `<` (HTML/XML), `{` o `[` (JSON). */
+const INICIOS_DE_ERROR = [0x3c, 0x7b, 0x5b];
+const BYTES_INSPECCIONADOS = 64;
+
 function empiezaCon(bytes: Uint8Array, firma: readonly number[]): boolean {
   return bytes.length >= firma.length && firma.every((byte, i) => bytes[i] === byte);
+}
+
+/**
+ * Un CSV legítimo empieza por el nombre de una columna, nunca por `<`, `{` o `[`. Un proxy o un
+ * balanceador puede responder `200` con su página de error: eso no es un reporte y no se entrega.
+ */
+function parecePaginaDeError(bytes: Uint8Array): boolean {
+  let i = empiezaCon(bytes, BOM_UTF8) ? BOM_UTF8.length : 0;
+  while (i < bytes.length && [0x20, 0x09, 0x0a, 0x0d].includes(bytes[i])) i++;
+  return i < bytes.length && INICIOS_DE_ERROR.includes(bytes[i]);
 }
 
 /** Error de exportación con la clasificación exacta que se reporta al backend. */
@@ -231,13 +245,19 @@ export class ReportesService {
         'BLOB_VACIO',
       );
     }
-    const bytes = new Uint8Array(await blob.slice(0, 5).arrayBuffer());
+    const bytes = new Uint8Array(await blob.slice(0, BYTES_INSPECCIONADOS).arrayBuffer());
     if (formato === 'CSV') {
       const soloBom = empiezaCon(bytes, BOM_UTF8) && blob.size <= BOM_UTF8.length;
       if (soloBom) {
         throw new ErrorReporte(
           'El servidor devolvió un CSV sin contenido. Inténtalo de nuevo.',
           'BLOB_VACIO',
+        );
+      }
+      if (parecePaginaDeError(bytes)) {
+        throw new ErrorReporte(
+          'El archivo recibido no es un CSV válido. Inténtalo de nuevo o avisa al administrador.',
+          'ERROR_CLIENTE',
         );
       }
     } else {

@@ -46,10 +46,9 @@ class ConstructorDatosReporteTest {
     private static DashboardOverviewResponse resumen(BigDecimal ventas, long pedidos, long unidades,
                                                      List<DashboardSerieResponse> categorias,
                                                      List<DashboardSerieResponse> tallas,
-                                                     List<DashboardSerieResponse> productos,
-                                                     List<DashboardDemandaDetalleResponse> detalle) {
+                                                     List<DashboardSerieResponse> productos) {
         return new DashboardOverviewResponse(ventas, pedidos, BigDecimal.ZERO, unidades, null, 300L, 5L,
-                categorias, tallas, productos, List.of(), detalle);
+                categorias, tallas, productos, List.of(), List.of());
     }
 
     @Test
@@ -58,8 +57,7 @@ class ConstructorDatosReporteTest {
                 new BigDecimal("1500000"), 12L, 40L,
                 List.of(new DashboardSerieResponse("VESTIDOS", new BigDecimal("900000"), 20L)),
                 List.of(),
-                List.of(new DashboardSerieResponse("Vestido floral", new BigDecimal("500000"), 10L)),
-                List.of()));
+                List.of(new DashboardSerieResponse("Vestido floral", new BigDecimal("500000"), 10L))));
         when(dashboard.obtenerVentasPorDia(any(), any(), isNull(), eq(7L))).thenReturn(List.of());
 
         ReporteDatos datos = constructor.construir(
@@ -79,7 +77,7 @@ class ConstructorDatosReporteTest {
     @Test
     void ventasIncluyeSerieDiariaConNivelDeBarraProporcional() {
         when(dashboard.obtenerResumen(any(), any(), isNull(), eq(7L))).thenReturn(resumen(
-                new BigDecimal("300000"), 3, 3, List.of(), List.of(), List.of(), List.of()));
+                new BigDecimal("300000"), 3, 3, List.of(), List.of(), List.of()));
         when(dashboard.obtenerVentasPorDia(any(), any(), isNull(), eq(7L))).thenReturn(List.of(
                 new DashboardVentasDiaResponse(LocalDate.of(2026, 10, 1), 2, new BigDecimal("200000")),
                 new DashboardVentasDiaResponse(LocalDate.of(2026, 10, 2), 1, new BigDecimal("100000"))));
@@ -104,7 +102,7 @@ class ConstructorDatosReporteTest {
     @Test
     void ventasSinDatosIncluyeUnaFilaExplicativaEnVezDeFallar() {
         when(dashboard.obtenerResumen(any(), any(), isNull(), any())).thenReturn(resumen(
-                BigDecimal.ZERO, 0, 0, List.of(), List.of(), List.of(), List.of()));
+                BigDecimal.ZERO, 0, 0, List.of(), List.of(), List.of()));
         when(dashboard.obtenerVentasPorDia(any(), any(), isNull(), any())).thenReturn(List.of());
 
         ReporteDatos datos = constructor.construir(
@@ -116,11 +114,8 @@ class ConstructorDatosReporteTest {
 
     @Test
     void demandaIncluyePrendasTallasYNoFormateaUnidadesComoDinero() {
-        when(dashboard.obtenerResumen(any(), any(), isNull(), eq(7L))).thenReturn(resumen(
-                BigDecimal.ZERO, 0, 24L, List.of(),
-                List.of(new DashboardSerieResponse("4T", new BigDecimal("240000"), 12L)),
-                List.of(),
-                List.of(new DashboardDemandaDetalleResponse("Vestido floral", "4T", 12L, new BigDecimal("240000")))));
+        when(dashboard.obtenerDemandaDetalle(any(), any(), isNull(), eq(7L))).thenReturn(List.of(
+                new DashboardDemandaDetalleResponse("Vestido floral", "4T", 12L, new BigDecimal("240000"))));
         ReporteDatos datos = constructor.construir(
                 new SolicitudReporte(TipoReporte.DEMANDA, FormatoReporte.PDF, null, null, null), 7L, vendedor);
 
@@ -139,8 +134,7 @@ class ConstructorDatosReporteTest {
     void laTablaCrudaConservaTiposParaXlsxYCsv() {
         when(dashboard.obtenerResumen(any(), any(), isNull(), eq(7L))).thenReturn(resumen(
                 new BigDecimal("1500000"), 12L, 40L, List.of(), List.of(),
-                List.of(new DashboardSerieResponse("Vestido floral", new BigDecimal("500000"), 10L)),
-                List.of()));
+                List.of(new DashboardSerieResponse("Vestido floral", new BigDecimal("500000"), 10L))));
         when(dashboard.obtenerVentasPorDia(any(), any(), isNull(), eq(7L))).thenReturn(List.of());
 
         ReporteDatos datos = constructor.construir(
@@ -156,9 +150,9 @@ class ConstructorDatosReporteTest {
 
     @Test
     void elFiltroDeCategoriaSePropagaAlDashboardYAlInventario() {
-        when(dashboard.obtenerResumen(any(), any(), eq(CategoriaPrenda.VESTIDOS), eq(7L))).thenReturn(resumen(
-                BigDecimal.ZERO, 0, 0, List.of(), List.of(), List.of(), List.of()));
-        when(dashboard.obtenerVentasPorDia(any(), any(), eq(CategoriaPrenda.VESTIDOS), eq(7L))).thenReturn(List.of());
+        when(dashboard.obtenerResumen(any(), any(), eq("VESTIDOS"), eq(7L))).thenReturn(resumen(
+                BigDecimal.ZERO, 0, 0, List.of(), List.of(), List.of()));
+        when(dashboard.obtenerVentasPorDia(any(), any(), eq("VESTIDOS"), eq(7L))).thenReturn(List.of());
 
         constructor.construir(
                 new SolicitudReporte(TipoReporte.VENTAS, FormatoReporte.PDF, null, null, "vestidos"), 7L, vendedor);

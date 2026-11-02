@@ -74,7 +74,7 @@ cierran al terminar.
 | “No pudimos generar el reporte. Inténtalo de nuevo en unos minutos.” | Fallo interno | Reintenta; si persiste, avisa al equipo técnico |
 | “No hay conexión con el servidor.” | Red caída | Revisa la conexión y reintenta |
 | “No pudimos guardar el archivo. Revisa los permisos de descarga.” | El navegador bloqueó la descarga | Permite descargas para el sitio o elige otra carpeta |
-| “El archivo recibido no es un PDF válido.” (o Excel) | La respuesta llegó incompleta o una página de error ocupó el lugar del archivo | Reintenta; si persiste, avisa al equipo técnico |
+| “El archivo recibido no es un PDF válido.” (o Excel/CSV) | La respuesta llegó incompleta o una página de error ocupó el lugar del archivo | Reintenta; si persiste, avisa al equipo técnico |
 
 ## 7. Barra de progreso y cancelación
 

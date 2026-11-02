@@ -161,6 +161,35 @@ describe('ReportesService', () => {
     expect(fases).toContain('listo');
   });
 
+  it('no entrega como CSV un HTML de error disfrazado', async () => {
+    const error = new Promise<ErrorReporte>((resolve) =>
+      service.exportar('busquedas', {}, 'CSV').subscribe({ error: (e: ErrorReporte) => resolve(e) }),
+    );
+    httpMock
+      .expectOne((r) => r.url === '/api/v1/reportes/busquedas')
+      .flush(new Blob(['<!DOCTYPE html><html><body>Mantenimiento</body></html>']));
+    const resultado = await error;
+    expect(resultado.resultado).toBe('ERROR_CLIENTE');
+    expect(resultado.message).toContain('CSV');
+  });
+
+  it('no entrega como CSV un JSON de error, aunque empiece con BOM', async () => {
+    const error = new Promise<ErrorReporte>((resolve) =>
+      service.exportar('busquedas', {}, 'CSV').subscribe({ error: (e: ErrorReporte) => resolve(e) }),
+    );
+    httpMock
+      .expectOne((r) => r.url === '/api/v1/reportes/busquedas')
+      .flush(
+        new Blob([
+          new Uint8Array([0xef, 0xbb, 0xbf]),
+          '{"timestamp":"2026-11-01T21:00:00Z","status":502}',
+        ]),
+      );
+    const resultado = await error;
+    expect(resultado.resultado).toBe('ERROR_CLIENTE');
+    expect(resultado.message).toContain('CSV');
+  });
+
   it('un CSV que solo trae BOM se clasifica como BLOB_VACIO', async () => {
     const error = new Promise<ErrorReporte>((resolve) =>
       service.exportar('busquedas', {}, 'CSV').subscribe({ error: (e: ErrorReporte) => resolve(e) }),

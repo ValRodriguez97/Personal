@@ -4,6 +4,7 @@ import co.edu.uniquindio.littlestyle.config.security.AuthenticatedUser;
 import co.edu.uniquindio.littlestyle.modules.catalogocompras.catalogo.model.CategoriaPrenda;
 import co.edu.uniquindio.littlestyle.modules.catalogocompras.catalogo.model.EstadoPrenda;
 import co.edu.uniquindio.littlestyle.modules.catalogocompras.inventario.model.NivelStock;
+import co.edu.uniquindio.littlestyle.modules.dashboard.dto.DashboardDemandaDetalleResponse;
 import co.edu.uniquindio.littlestyle.modules.dashboard.dto.DashboardOverviewResponse;
 import co.edu.uniquindio.littlestyle.modules.dashboard.dto.DashboardVentasDiaResponse;
 import co.edu.uniquindio.littlestyle.modules.dashboard.service.DashboardAnalyticsService;
@@ -71,9 +72,10 @@ public class ConstructorDatosReporte {
 
     private ReporteDatos ventas(SolicitudReporte s, CategoriaPrenda categoria, Long vendedorId, AuthenticatedUser u) {
         Periodo p = Periodo.de(s.startDate(), s.endDate());
-        DashboardOverviewResponse r = dashboard.obtenerResumen(p.desde(), p.hasta(), categoria, vendedorId);
+        String cat = categoria == null ? null : categoria.name();
+        DashboardOverviewResponse r = dashboard.obtenerResumen(p.desde(), p.hasta(), cat, vendedorId);
         List<DashboardVentasDiaResponse> diarias =
-                dashboard.obtenerVentasPorDia(p.desde(), p.hasta(), categoria, vendedorId);
+                dashboard.obtenerVentasPorDia(p.desde(), p.hasta(), cat, vendedorId);
 
         List<Map<String, ?>> filas = new ArrayList<>();
         List<List<Object>> crudas = new ArrayList<>();
@@ -131,11 +133,12 @@ public class ConstructorDatosReporte {
 
     private ReporteDatos demanda(SolicitudReporte s, CategoriaPrenda categoria, Long vendedorId, AuthenticatedUser u) {
         Periodo p = Periodo.de(s.startDate(), s.endDate());
-        DashboardOverviewResponse r = dashboard.obtenerResumen(p.desde(), p.hasta(), categoria, vendedorId);
+        List<DashboardDemandaDetalleResponse> detalle = dashboard.obtenerDemandaDetalle(
+                p.desde(), p.hasta(), categoria == null ? null : categoria.name(), vendedorId);
 
         List<Map<String, ?>> filas = new ArrayList<>();
         List<List<Object>> crudas = new ArrayList<>();
-        r.demandaDetalle().forEach(x -> {
+        detalle.forEach(x -> {
             Map<String, Object> m = new HashMap<>();
             m.put("seccion", "Demanda por prenda y talla");
             m.put("etiqueta", txt(x.prenda()));
@@ -150,7 +153,7 @@ public class ConstructorDatosReporte {
             agregar(filas, crudas, m, x.prenda(), x.talla(), x.unidades(), x.valor());
         });
 
-        if (r.demandaDetalle().isEmpty()) {
+        if (detalle.isEmpty()) {
             agregar(filas, crudas,
                     fila("Resumen", "Sin actividad registrada en el período", "", ""),
                     "Resumen", "Sin actividad registrada en el período", null, null);

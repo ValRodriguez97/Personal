@@ -62,11 +62,13 @@ el cliente comprueba que el blob recibido corresponde al formato pedido leyendo 
 |---|---|
 | `PDF` | `%PDF-` (`25 50 44 46 2D`) |
 | `XLSX` | `PK` (`50 4B`), porque todo OOXML es un ZIP |
-| `CSV` | Texto no vacío; se admite el BOM UTF-8 `EF BB BF` |
+| `CSV` | Texto no vacío que no empiece por `<`, `{` o `[`; se admite el BOM UTF-8 `EF BB BF` |
 
 Si la firma no coincide, el archivo no se entrega y se reporta `error_cliente` (o `blob_vacio` si no
-hay contenido). Por eso `ok` significa **«archivo íntegro validado y entregado al navegador»**, no
-«guardado en disco». El campo `motivo` de la telemetría deja el detalle trazable
+hay contenido). En CSV la comprobación es más laxa porque el formato es texto libre, pero se
+descartan las páginas de error HTML/XML (`<`) y las respuestas JSON (`{`, `[`) que un proxy pudiera
+servir con estado `200`. Por eso `ok` significa **«archivo íntegro validado y entregado al
+navegador»**, no «guardado en disco». El campo `motivo` de la telemetría deja el detalle trazable
 (`archivo_validado_entregado` para descarga, `archivo_validado_impreso` para impresión).
 
 Tasa de punta a punta (la que responde «¿el usuario obtuvo su archivo?»):
