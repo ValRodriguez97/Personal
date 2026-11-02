@@ -82,6 +82,10 @@ public class SecurityConfig {
                     if (h2ConsoleEnabled) {
                         auth.requestMatchers("/h2-console/**").permitAll();
                     }
+                    // RNF-24: /actuator/health es público para el balanceador; el resto de las
+                    // métricas de Actuator solo las consulta un administrador.
+                    auth.requestMatchers("/actuator/health").permitAll();
+                    auth.requestMatchers("/actuator/**").hasRole("ADMINISTRADOR");
                     auth.requestMatchers("/api/admin/**").hasRole("ADMINISTRADOR");
                     auth.requestMatchers("/api/vendedor/**").hasRole("VENDEDOR");
                     auth.requestMatchers("/api/cliente/**").hasRole("CLIENTE");

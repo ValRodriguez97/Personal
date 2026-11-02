@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 
 import { EstadoExportacion } from '../models/reporte.models';
-import { ReportesService } from './reportes.service';
+import { ErrorReporte, ReportesService } from './reportes.service';
 
 describe('ReportesService', () => {
   let service: ReportesService;
@@ -61,8 +61,8 @@ describe('ReportesService', () => {
   });
 
   it('lee el mensaje de error del Blob cuando el backend responde 400', async () => {
-    const mensaje = new Promise<string>((resolve) =>
-      service.exportar('ventas', {}).subscribe({ error: (e: Error) => resolve(e.message) }),
+    const error = new Promise<ErrorReporte>((resolve) =>
+      service.exportar('ventas', {}).subscribe({ error: (e: ErrorReporte) => resolve(e) }),
     );
     httpMock
       .expectOne((r) => r.url === '/api/v1/reportes/ventas')
@@ -70,16 +70,79 @@ describe('ReportesService', () => {
         status: 400,
         statusText: 'Bad Request',
       });
-    expect(await mensaje).toBe('La categoría no es válida');
+    const resultado = await error;
+    expect(resultado.message).toBe('La categoría no es válida');
+    expect(resultado.resultado).toBe('ERROR_CLIENTE');
   });
 
   it('un 500 muestra un mensaje genérico sin detalles internos', async () => {
-    const mensaje = new Promise<string>((resolve) =>
-      service.exportar('ventas', {}).subscribe({ error: (e: Error) => resolve(e.message) }),
+    const error = new Promise<ErrorReporte>((resolve) =>
+      service.exportar('ventas', {}).subscribe({ error: (e: ErrorReporte) => resolve(e) }),
     );
     httpMock
       .expectOne((r) => r.url === '/api/v1/reportes/ventas')
       .flush(new Blob(['trace interno']), { status: 500, statusText: 'Server Error' });
-    expect(await mensaje).toContain('No pudimos generar el reporte');
+    const resultado = await error;
+    expect(resultado.message).toContain('No pudimos generar el reporte');
+    expect(resultado.resultado).toBe('ERROR_CLIENTE');
+  });
+
+  it('un error de red se clasifica como ERROR_RED', async () => {
+    const error = new Promise<ErrorReporte>((resolve) =>
+      service.exportar('ventas', {}).subscribe({ error: (e: ErrorReporte) => resolve(e) }),
+    );
+    httpMock
+      .expectOne((r) => r.url === '/api/v1/reportes/ventas')
+      .error(new ProgressEvent('error'), { status: 0, statusText: 'Unknown Error' });
+    const resultado = await error;
+    expect(resultado.resultado).toBe('ERROR_RED');
+  });
+
+  it('un cuerpo vacío se clasifica como BLOB_VACIO', async () => {
+    const error = new Promise<ErrorReporte>((resolve) =>
+      service.exportar('ventas', {}).subscribe({ error: (e: ErrorReporte) => resolve(e) }),
+    );
+    httpMock
+      .expectOne((r) => r.url === '/api/v1/reportes/ventas')
+      .flush(new Blob([], { type: 'application/pdf' }));
+    const resultado = await error;
+    expect(resultado.resultado).toBe('BLOB_VACIO');
+  });
+
+  it('pide el formato elegido en el query param', () => {
+    service.exportar('ventas', {}, 'XLSX').subscribe();
+    const req = httpMock.expectOne((r) => r.url === '/api/v1/reportes/ventas');
+    expect(req.request.params.get('formato')).toBe('XLSX');
+    req.flush(new Blob(['PK']));
+  });
+
+  it('usa la extensión del formato cuando no llega Content-Disposition', () => {
+    let nombre = '';
+    service.exportar('busquedas', {}, 'CSV').subscribe((e) => {
+      if (e.fase === 'listo') nombre = e.archivo.nombre;
+    });
+    httpMock
+      .expectOne((r) => r.url === '/api/v1/reportes/busquedas')
+      .flush(new Blob(['a;b'], { type: 'text/csv' }));
+    expect(nombre).toBe('reporte-busquedas.csv');
+  });
+
+  it('reporta la telemetría al backend sin bloquear al usuario', () => {
+    service.reportarExportacion('ventas', 'XLSX', 'OK');
+
+    const req = httpMock.expectOne('/api/v1/reportes/telemetria');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ tipo: 'ventas', formato: 'XLSX', resultado: 'ok', motivo: null });
+    req.flush(null);
+  });
+
+  it('un fallo al enviar telemetría no rompe la experiencia de descarga', () => {
+    expect(() =>
+      service.reportarExportacion('ventas', 'PDF', 'ERROR_CLIENTE', 'sin permiso'),
+    ).not.toThrow();
+
+    const req = httpMock.expectOne('/api/v1/reportes/telemetria');
+    expect(req.request.body.resultado).toBe('error_cliente');
+    req.flush({ mensaje: 'sin servicio' }, { status: 503, statusText: 'Unavailable' });
   });
 });
