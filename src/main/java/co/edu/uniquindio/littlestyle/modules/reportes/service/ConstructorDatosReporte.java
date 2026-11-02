@@ -6,6 +6,7 @@ import co.edu.uniquindio.littlestyle.modules.catalogocompras.catalogo.model.Esta
 import co.edu.uniquindio.littlestyle.modules.catalogocompras.inventario.model.NivelStock;
 import co.edu.uniquindio.littlestyle.modules.dashboard.dto.DashboardDemandaDetalleResponse;
 import co.edu.uniquindio.littlestyle.modules.dashboard.dto.DashboardOverviewResponse;
+import co.edu.uniquindio.littlestyle.modules.dashboard.dto.DashboardSerieResponse;
 import co.edu.uniquindio.littlestyle.modules.dashboard.dto.DashboardVentasDiaResponse;
 import co.edu.uniquindio.littlestyle.modules.dashboard.service.DashboardAnalyticsService;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.BusquedaResumenFila;
@@ -50,7 +51,7 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class ConstructorDatosReporte {
 
-    static final int MAX_FILAS = 5_000;
+    static final int MAX_FILAS = DashboardAnalyticsService.MAX_FILAS_REPORTE;
     private static final Locale CO = Locale.of("es", "CO");
     private static final DateTimeFormatter FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy", CO);
     private static final DateTimeFormatter FECHA_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", CO);
@@ -76,6 +77,11 @@ public class ConstructorDatosReporte {
         DashboardOverviewResponse r = dashboard.obtenerResumen(p.desde(), p.hasta(), cat, vendedorId);
         List<DashboardVentasDiaResponse> diarias =
                 dashboard.obtenerVentasPorDia(p.desde(), p.hasta(), cat, vendedorId);
+        List<DashboardSerieResponse> productos = dashboard.obtenerProductosVendidosCompleto(
+                p.desde(), p.hasta(), cat, vendedorId);
+        if (productos.size() > MAX_FILAS) {
+            throw limiteSuperado("reporte de ventas");
+        }
 
         List<Map<String, ?>> filas = new ArrayList<>();
         List<List<Object>> crudas = new ArrayList<>();
@@ -108,11 +114,11 @@ public class ConstructorDatosReporte {
                     "Ventas por día", d.fecha(), d.pedidos(), d.total());
         }
 
-        r.productosPopulares().forEach(x -> agregar(filas, crudas,
+        productos.forEach(x -> agregar(filas, crudas,
                 fila("Ventas por prenda", x.label(), entero(x.cantidad()), moneda(x.value())),
                 "Ventas por prenda", x.label(), x.cantidad(), x.value()));
 
-        if (r.productosPopulares().isEmpty()) {
+        if (productos.isEmpty()) {
             agregar(filas, crudas,
                     fila("Resumen", "Sin ventas registradas en el período", "", ""),
                     "Resumen", "Sin ventas registradas en el período", null, null);

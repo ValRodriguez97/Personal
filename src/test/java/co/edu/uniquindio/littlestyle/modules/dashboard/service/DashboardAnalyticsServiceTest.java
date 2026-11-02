@@ -193,4 +193,18 @@ class DashboardAnalyticsServiceTest {
         verify(repository).demandaDetalle(INICIO, FIN, DashboardAnalyticsService.ESTADOS_VENTA, 7L,
                 CategoriaPrenda.VESTIDOS);
     }
+
+    @Test
+    void productosVendidosCompletosSolicitaLimiteDeReporteMasUno() {
+        when(repository.productosMasVendidosCompleto(eq(INICIO), eq(FIN),
+                eq(DashboardAnalyticsService.ESTADOS_VENTA), eq(7L), eq(CategoriaPrenda.VESTIDOS),
+                any(Pageable.class))).thenReturn(List.of());
+
+        service.obtenerProductosVendidosCompleto(DESDE, HASTA, "vestidos", 7L);
+
+        verify(repository).productosMasVendidosCompleto(eq(INICIO), eq(FIN),
+                eq(DashboardAnalyticsService.ESTADOS_VENTA), eq(7L), eq(CategoriaPrenda.VESTIDOS),
+                org.mockito.ArgumentMatchers.argThat(pageable ->
+                        pageable.getPageSize() == DashboardAnalyticsService.MAX_FILAS_REPORTE + 1));
+    }
 }

@@ -171,6 +171,13 @@ public interface DashboardAnalyticsRepository extends JpaRepository<Pedido, Long
                                                       @Param("categoria") CategoriaPrenda categoria,
                                                       Pageable limite);
 
+    default List<DashboardSerieResponse> productosMasVendidosCompleto(LocalDateTime inicio, LocalDateTime fin,
+                                                                       Collection<EstadoPedido> estados,
+                                                                       Long vendedorId, CategoriaPrenda categoria,
+                                                                       Pageable limite) {
+        return productosMasVendidos(inicio, fin, estados, vendedorId, categoria, limite);
+    }
+
     /** Vistas reales de la ficha de cada prenda (no ventas). */
     @Query("""
             select new co.edu.uniquindio.littlestyle.modules.dashboard.dto.DashboardSerieResponse(

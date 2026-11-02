@@ -46,6 +46,7 @@ public class DashboardAnalyticsService {
             EstadoPedido.ENVIADO);
 
     static final int TAMANO_TOP = 10;
+    public static final int MAX_FILAS_REPORTE = 5_000;
     private static final int DIAS_POR_DEFECTO = 30;
 
     private final DashboardAnalyticsRepository repository;
@@ -110,6 +111,14 @@ public class DashboardAnalyticsService {
         Rango rango = Rango.de(startDate, endDate);
         return repository.productosMasVendidos(rango.inicio, rango.fin, ESTADOS_VENTA, vendedorId,
                 parsearCategoria(categoria), top());
+    }
+
+    @Transactional(readOnly = true)
+    public List<DashboardSerieResponse> obtenerProductosVendidosCompleto(LocalDate startDate, LocalDate endDate,
+                                                                         String categoria, Long vendedorId) {
+        Rango rango = Rango.de(startDate, endDate);
+        return repository.productosMasVendidosCompleto(rango.inicio, rango.fin, ESTADOS_VENTA, vendedorId,
+                parsearCategoria(categoria), PageRequest.of(0, MAX_FILAS_REPORTE + 1));
     }
 
     private static Pageable top() {
