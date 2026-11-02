@@ -49,8 +49,10 @@ límite de filas, la plantilla propia de cada reporte y la **medición auditable
   - Responde `202 Accepted`; es *fire and forget* desde el navegador.
   - Límite de 30 eventos por usuario y minuto (`429` al excederlo).
 - `GET /api/v1/reportes/metricas/exito`
-  - Solo `ADMINISTRADOR`. Devuelve `ok`, `error`, `rechazado`, `tasaExito` (0–1), `cumpleRnf24` y
-    `desde` (arranque del proceso). El umbral es estrictamente `> 0.98`.
+  - Solo `ADMINISTRADOR`. Devuelve `ok`, `error`, `rechazado`, `tasaExito` (0–1 o `null`),
+    `estado` (`CUMPLE`, `NO_CUMPLE`, `SIN_DATOS`), `cumpleRnf24` y `desde` (arranque del proceso).
+    El umbral es estrictamente `> 0.98`. Sin solicitudes el estado es `SIN_DATOS` y no se declara
+    cumplimiento.
 - `GET /actuator/metrics`
   - Solo `ADMINISTRADOR` (salvo `/actuator/health`, que es público). Las series se consultan por
     nombre: `reporte.exportaciones` (servidor), `reporte.exportaciones.cliente` (navegador) y
@@ -114,8 +116,9 @@ Cada formato es un valor de `FormatoReporte` con su `CreadorGeneradorX` y su `Ge
   - selector de reporte y formato, descarga, progreso, cancelación, impresión solo para PDF y
     telemetría del resultado.
 - `frontend/src/app/features/reportes/services/reportes.service.ts`
-  - petición con `responseType: 'blob'`, nombre de archivo desde `Content-Disposition`, entrega del
-    archivo y reporte *fire and forget*.
+  - petición con `responseType: 'blob'`, validación de la firma real del archivo (`%PDF-` / `PK` /
+    texto con BOM), nombre desde `Content-Disposition`, entrega del archivo y reporte *fire and
+    forget*.
 - `frontend/src/app/features/reportes/models/reporte.models.ts`
   - tipos y opciones de reporte/formato compartidos.
 - `frontend/src/app/features/dashboard/pages/dashboard-analytics/dashboard-analytics.ts`
@@ -137,5 +140,5 @@ Comandos de verificación:
 cd frontend && npm test -- --watch=false
 ```
 
-Resultado de la última ejecución: **499 pruebas backend sin fallos** y **54 archivos / 281 pruebas
+Resultado de la última ejecución: **520 pruebas backend sin fallos** y **54 archivos / 287 pruebas
 frontend aprobadas**.

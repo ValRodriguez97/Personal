@@ -74,6 +74,7 @@ cierran al terminar.
 | “No pudimos generar el reporte. Inténtalo de nuevo en unos minutos.” | Fallo interno | Reintenta; si persiste, avisa al equipo técnico |
 | “No hay conexión con el servidor.” | Red caída | Revisa la conexión y reintenta |
 | “No pudimos guardar el archivo. Revisa los permisos de descarga.” | El navegador bloqueó la descarga | Permite descargas para el sitio o elige otra carpeta |
+| “El archivo recibido no es un PDF válido.” (o Excel) | La respuesta llegó incompleta o una página de error ocupó el lugar del archivo | Reintenta; si persiste, avisa al equipo técnico |
 
 ## 7. Barra de progreso y cancelación
 
@@ -92,12 +93,14 @@ LittleStyle mide ese porcentaje con dos fuentes separadas:
 
 La tasa del requisito es `ok / (ok + error)` y solo cumple si es **estrictamente mayor que 0,98**.
 Los rechazos por filtros inválidos y las cancelaciones del usuario quedan fuera del denominador.
+Mientras no haya solicitudes registradas, el estado es `SIN_DATOS` y la tasa no se publica: no se
+declara cumplimiento sin evidencia.
 
 Consultas disponibles:
 
 | Recurso | Acceso | Uso |
 |---|---|---|
-| `GET /api/v1/reportes/metricas/exito` | Administrador | `ok`, `error`, `rechazado`, `tasaExito`, `cumpleRnf24` y `desde` |
+| `GET /api/v1/reportes/metricas/exito` | Administrador | `ok`, `error`, `rechazado`, `tasaExito`, `estado`, `cumpleRnf24` y `desde` |
 | `GET /actuator/metrics` | Administrador | Series `reporte.exportaciones`, `reporte.exportaciones.cliente` y `reporte.exportacion.duracion` |
 | Log `reporte.exportacion` | Equipo técnico | Detalle por intento: tipo, formato, filas, bytes, duración y usuario |
 

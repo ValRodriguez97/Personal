@@ -1,5 +1,6 @@
 package co.edu.uniquindio.littlestyle.modules.reportes.service;
 
+import co.edu.uniquindio.littlestyle.modules.reportes.dto.EstadoRnf24;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.FormatoReporte;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.MetricaExitoResponse;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.ResultadoExportacion;
@@ -26,14 +27,15 @@ class ReporteMetricasTest {
     }
 
     @Test
-    void sinExportacionesSeAsumeCumplimientoYSeConoceElArranque() {
+    void sinExportacionesElEstadoEsSinDatosYNoCumple() {
         MetricaExitoResponse r = metricas.resumen();
 
         assertThat(r.ok()).isZero();
         assertThat(r.error()).isZero();
         assertThat(r.rechazado()).isZero();
-        assertThat(r.tasaExito()).isEqualTo(1.0);
-        assertThat(r.cumpleRnf24()).isTrue();
+        assertThat(r.tasaExito()).isNull();
+        assertThat(r.estado()).isEqualTo(EstadoRnf24.SIN_DATOS);
+        assertThat(r.cumpleRnf24()).isFalse();
         assertThat(r.desde()).isNotNull();
     }
 
@@ -45,10 +47,36 @@ class ReporteMetricasTest {
         assertThat(r.ok()).isEqualTo(1);
         assertThat(r.error()).isZero();
         assertThat(r.tasaExito()).isEqualTo(1.0);
+        assertThat(r.estado()).isEqualTo(EstadoRnf24.CUMPLE);
         assertThat(r.cumpleRnf24()).isTrue();
         assertThat(registro.get("reporte.exportaciones")
                 .tags("tipo", "ventas", "formato", "xlsx", "resultado", "ok")
                 .counter().count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void cincuentaExportacionesSinErroresCumplen() {
+        for (int i = 0; i < 50; i++) {
+            metricas.exito(TipoReporte.VENTAS, FormatoReporte.PDF, 1);
+        }
+
+        MetricaExitoResponse r = metricas.resumen();
+        assertThat(r.tasaExito()).isEqualTo(1.0);
+        assertThat(r.estado()).isEqualTo(EstadoRnf24.CUMPLE);
+        assertThat(r.cumpleRnf24()).isTrue();
+    }
+
+    @Test
+    void noventaYNueveSobreCienCumplen() {
+        for (int i = 0; i < 99; i++) {
+            metricas.exito(TipoReporte.VENTAS, FormatoReporte.PDF, 1);
+        }
+        metricas.fallo(TipoReporte.VENTAS, FormatoReporte.PDF);
+
+        MetricaExitoResponse r = metricas.resumen();
+        assertThat(r.tasaExito()).isEqualTo(0.99);
+        assertThat(r.estado()).isEqualTo(EstadoRnf24.CUMPLE);
+        assertThat(r.cumpleRnf24()).isTrue();
     }
 
     @Test
@@ -61,6 +89,7 @@ class ReporteMetricasTest {
         assertThat(r.error()).isZero();
         assertThat(r.rechazado()).isEqualTo(1);
         assertThat(r.tasaExito()).isEqualTo(1.0);
+        assertThat(r.estado()).isEqualTo(EstadoRnf24.CUMPLE);
     }
 
     @Test
@@ -72,11 +101,13 @@ class ReporteMetricasTest {
 
         MetricaExitoResponse r = metricas.resumen();
         assertThat(r.tasaExito()).isEqualTo(0.98);
+        assertThat(r.estado()).isEqualTo(EstadoRnf24.NO_CUMPLE);
         assertThat(r.cumpleRnf24()).isFalse();
 
         metricas.exito(TipoReporte.VENTAS, FormatoReporte.CSV, 1);
         MetricaExitoResponse siguiente = metricas.resumen();
         assertThat(siguiente.tasaExito()).isGreaterThan(0.98);
+        assertThat(siguiente.estado()).isEqualTo(EstadoRnf24.CUMPLE);
         assertThat(siguiente.cumpleRnf24()).isTrue();
     }
 
@@ -89,7 +120,8 @@ class ReporteMetricasTest {
         MetricaExitoResponse r = metricas.resumen();
         assertThat(r.ok()).isZero();
         assertThat(r.error()).isZero();
-        assertThat(r.tasaExito()).isEqualTo(1.0);
+        assertThat(r.tasaExito()).isNull();
+        assertThat(r.estado()).isEqualTo(EstadoRnf24.SIN_DATOS);
         assertThat(registro.get("reporte.exportaciones.cliente")
                 .tags("tipo", "ventas", "formato", "pdf", "resultado", "error_red")
                 .counter().count()).isEqualTo(1.0);

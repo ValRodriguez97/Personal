@@ -9,6 +9,7 @@ import co.edu.uniquindio.littlestyle.config.security.RestAuthenticationEntryPoin
 import co.edu.uniquindio.littlestyle.modules.auth.model.Rol;
 import co.edu.uniquindio.littlestyle.modules.auth.service.EstadoCuentaService;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.ArchivoReporte;
+import co.edu.uniquindio.littlestyle.modules.reportes.dto.EstadoRnf24;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.MetricaExitoResponse;
 import co.edu.uniquindio.littlestyle.modules.reportes.service.ReporteMetricas;
 import co.edu.uniquindio.littlestyle.modules.reportes.service.ReporteService;
@@ -30,8 +31,10 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -120,12 +123,25 @@ class ReporteControllerSecurityTest {
 
     @Test
     void laMetricaDeExitoEsSoloParaAdministrador() throws Exception {
-        when(metricas.resumen()).thenReturn(new MetricaExitoResponse(1, 0, 0, 1.0, true, Instant.now()));
+        when(metricas.resumen()).thenReturn(new MetricaExitoResponse(1, 0, 0, 1.0,
+                EstadoRnf24.CUMPLE, true, Instant.now()));
 
         mvc.perform(get("/api/v1/reportes/metricas/exito").with(autenticado(VENDEDOR)))
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/reportes/metricas/exito").with(autenticado(ADMIN)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void elJsonSinEvidenciaExponeEstadoSinDatosYTasaNula() throws Exception {
+        when(metricas.resumen()).thenReturn(new MetricaExitoResponse(0, 0, 0, null,
+                EstadoRnf24.SIN_DATOS, false, Instant.now()));
+
+        mvc.perform(get("/api/v1/reportes/metricas/exito").with(autenticado(ADMIN)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("SIN_DATOS"))
+                .andExpect(jsonPath("$.tasaExito").value(nullValue()))
+                .andExpect(jsonPath("$.cumpleRnf24").value(false));
     }
 
     private static RequestPostProcessor autenticado(AuthenticatedUser usuario) {

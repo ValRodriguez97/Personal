@@ -7,7 +7,7 @@ import {
   HttpParams,
 } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, filter, from, map, mergeMap, throwError } from 'rxjs';
+import { Observable, catchError, filter, from, mergeMap, of, throwError } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
 import {
@@ -22,6 +22,18 @@ import {
 } from '../models/reporte.models';
 
 const MENSAJE_GENERICO = 'No pudimos exportar el reporte. Inténtalo de nuevo.';
+
+/**
+ * Firmas reales de cada formato. El navegador no puede confirmar que el archivo se guardó en disco,
+ * pero sí puede comprobar que lo recibido es el tipo de archivo pedido y no una página de error.
+ */
+const FIRMA_PDF = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
+const FIRMA_XLSX = [0x50, 0x4b]; // "PK": todo OOXML es un ZIP
+const BOM_UTF8 = [0xef, 0xbb, 0xbf];
+
+function empiezaCon(bytes: Uint8Array, firma: readonly number[]): boolean {
+  return bytes.length >= firma.length && firma.every((byte, i) => bytes[i] === byte);
+}
 
 /** Error de exportación con la clasificación exacta que se reporta al backend. */
 export class ErrorReporte extends Error {
@@ -54,7 +66,7 @@ export class ReportesService {
         reportProgress: true,
       })
       .pipe(
-        map((evento) => this.aEstado(evento, tipo, formato)),
+        mergeMap((evento) => this.aEstado(evento, tipo, formato)),
         filter((estado): estado is EstadoExportacion => estado !== null),
         catchError((err: unknown) =>
           from(this.detalleError(err)).pipe(
@@ -178,31 +190,67 @@ export class ReportesService {
     evento: HttpEvent<Blob>,
     tipo: TipoReporte,
     formato: FormatoReporte,
-  ): EstadoExportacion | null {
+  ): Observable<EstadoExportacion | null> {
     switch (evento.type) {
       case HttpEventType.Sent:
-        return { fase: 'generando' };
+        return of({ fase: 'generando' });
       case HttpEventType.ResponseHeader:
-        return { fase: 'descargando', progreso: null };
+        return of({ fase: 'descargando', progreso: null });
       case HttpEventType.DownloadProgress:
-        return {
+        return of({
           fase: 'descargando',
           progreso: evento.total ? Math.min(100, Math.round((evento.loaded * 100) / evento.total)) : null,
-        };
-      case HttpEventType.Response: {
-        const blob = evento.body;
-        if (!blob || blob.size === 0) {
-          throw new ErrorReporte(
-            'El servidor devolvió un archivo vacío. Inténtalo de nuevo.',
-            'BLOB_VACIO',
-          );
-        }
-        const nombre = this.nombreDe(evento.headers.get('Content-Disposition'), tipo, formato);
-        return { fase: 'listo', archivo: { blob, nombre } };
-      }
+        });
+      case HttpEventType.Response:
+        return from(
+          this.archivoListo(
+            evento.body,
+            evento.headers.get('Content-Disposition'),
+            tipo,
+            formato,
+          ),
+        );
       default:
-        return null;
+        return of(null);
     }
+  }
+
+  /**
+   * Valida la firma del blob antes de entregarlo. Un `200` con una página de error o un archivo
+   * truncado nunca debe llegar al usuario ni contarse como exportación exitosa.
+   */
+  private async archivoListo(
+    blob: Blob | null,
+    cabecera: string | null,
+    tipo: TipoReporte,
+    formato: FormatoReporte,
+  ): Promise<EstadoExportacion> {
+    if (!blob || blob.size === 0) {
+      throw new ErrorReporte(
+        'El servidor devolvió un archivo vacío. Inténtalo de nuevo.',
+        'BLOB_VACIO',
+      );
+    }
+    const bytes = new Uint8Array(await blob.slice(0, 5).arrayBuffer());
+    if (formato === 'CSV') {
+      const soloBom = empiezaCon(bytes, BOM_UTF8) && blob.size <= BOM_UTF8.length;
+      if (soloBom) {
+        throw new ErrorReporte(
+          'El servidor devolvió un CSV sin contenido. Inténtalo de nuevo.',
+          'BLOB_VACIO',
+        );
+      }
+    } else {
+      const firma = formato === 'PDF' ? FIRMA_PDF : FIRMA_XLSX;
+      if (!empiezaCon(bytes, firma)) {
+        throw new ErrorReporte(
+          `El archivo recibido no es un ${formato} válido. Inténtalo de nuevo o avisa al administrador.`,
+          'ERROR_CLIENTE',
+        );
+      }
+    }
+    const nombre = this.nombreDe(cabecera, tipo, formato);
+    return { fase: 'listo', archivo: { blob, nombre } };
   }
 
   private nombreDe(cabecera: string | null, tipo: TipoReporte, formato: FormatoReporte): string {

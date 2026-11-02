@@ -3,6 +3,7 @@ package co.edu.uniquindio.littlestyle.modules.reportes.controller;
 import co.edu.uniquindio.littlestyle.config.security.AuthenticatedUser;
 import co.edu.uniquindio.littlestyle.modules.auth.model.Rol;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.ArchivoReporte;
+import co.edu.uniquindio.littlestyle.modules.reportes.dto.EstadoRnf24;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.FormatoReporte;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.MetricaExitoResponse;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.ResultadoExportacion;
@@ -106,8 +107,8 @@ class ReporteControllerTest {
 
     @Test
     void laMetricaDeExitoDevuelveElResumenYEsSoloParaAdministrador() throws NoSuchMethodException {
-        MetricaExitoResponse resumen = new MetricaExitoResponse(98, 1, 2, 0.9899, true,
-                java.time.Instant.parse("2026-10-31T10:00:00Z"));
+        MetricaExitoResponse resumen = new MetricaExitoResponse(98, 1, 2, 0.9899,
+                EstadoRnf24.CUMPLE, true, java.time.Instant.parse("2026-10-31T10:00:00Z"));
         when(metricas.resumen()).thenReturn(resumen);
 
         assertThat(controller.metricaExito()).isSameAs(resumen);

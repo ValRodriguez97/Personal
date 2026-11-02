@@ -76,7 +76,7 @@ public class GeneradorReporteXlsx implements GeneradorReporte {
         cabecera.setHeightInPoints(22);
         for (int c = 0; c < columnas.size(); c++) {
             Cell celda = cabecera.createCell(c);
-            celda.setCellValue(columnas.get(c).nombre());
+            celda.setCellValue(ValoresReporte.texto(columnas.get(c).nombre()));
             celda.setCellStyle(estilos.cabecera);
         }
 
@@ -148,7 +148,7 @@ public class GeneradorReporteXlsx implements GeneradorReporte {
         Row titulo = hoja.createRow(f++);
         titulo.setHeightInPoints(28);
         Cell celdaTitulo = titulo.createCell(0);
-        celdaTitulo.setCellValue("LittleStyle · " + datos.titulo());
+        celdaTitulo.setCellValue(ValoresReporte.texto("LittleStyle · " + datos.titulo()));
         celdaTitulo.setCellStyle(estilos.titulo);
 
         Map<String, Object> p = datos.parametros();

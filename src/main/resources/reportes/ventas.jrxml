@@ -87,35 +87,11 @@
     </columnHeader>
     <detail>
         <band height="17">
-            <element kind="rectangle" x="0" y="1" width="30" height="15" backcolor="#DCFCE7" mode="Opaque">
-                <printWhenExpression><![CDATA[$F{nivelBarra} != null && $F{nivelBarra} >= 1]]></printWhenExpression>
-            </element>
-            <element kind="rectangle" x="30" y="1" width="30" height="15" backcolor="#DCFCE7" mode="Opaque">
-                <printWhenExpression><![CDATA[$F{nivelBarra} != null && $F{nivelBarra} >= 2]]></printWhenExpression>
-            </element>
-            <element kind="rectangle" x="60" y="1" width="30" height="15" backcolor="#DCFCE7" mode="Opaque">
-                <printWhenExpression><![CDATA[$F{nivelBarra} != null && $F{nivelBarra} >= 3]]></printWhenExpression>
-            </element>
-            <element kind="rectangle" x="90" y="1" width="30" height="15" backcolor="#DCFCE7" mode="Opaque">
-                <printWhenExpression><![CDATA[$F{nivelBarra} != null && $F{nivelBarra} >= 4]]></printWhenExpression>
-            </element>
-            <element kind="rectangle" x="120" y="1" width="30" height="15" backcolor="#DCFCE7" mode="Opaque">
-                <printWhenExpression><![CDATA[$F{nivelBarra} != null && $F{nivelBarra} >= 5]]></printWhenExpression>
-            </element>
-            <element kind="rectangle" x="150" y="1" width="30" height="15" backcolor="#DCFCE7" mode="Opaque">
-                <printWhenExpression><![CDATA[$F{nivelBarra} != null && $F{nivelBarra} >= 6]]></printWhenExpression>
-            </element>
-            <element kind="rectangle" x="180" y="1" width="30" height="15" backcolor="#BBF7D0" mode="Opaque">
-                <printWhenExpression><![CDATA[$F{nivelBarra} != null && $F{nivelBarra} >= 7]]></printWhenExpression>
-            </element>
-            <element kind="rectangle" x="210" y="1" width="30" height="15" backcolor="#BBF7D0" mode="Opaque">
-                <printWhenExpression><![CDATA[$F{nivelBarra} != null && $F{nivelBarra} >= 8]]></printWhenExpression>
-            </element>
-            <element kind="rectangle" x="240" y="1" width="30" height="15" backcolor="#86EFAC" mode="Opaque">
-                <printWhenExpression><![CDATA[$F{nivelBarra} != null && $F{nivelBarra} >= 9]]></printWhenExpression>
-            </element>
-            <element kind="rectangle" x="270" y="1" width="30" height="15" backcolor="#4ADE80" mode="Opaque">
-                <printWhenExpression><![CDATA[$F{nivelBarra} != null && $F{nivelBarra} >= 10]]></printWhenExpression>
+            <!-- Barra proporcional en 10 tramos: un solo carácter de bloque U+2588 repetido según
+                 nivelBarra (0-10). Reemplaza los diez rectángulos con printWhenExpression. El
+                 tamaño 10 cabe en la banda de 17 px sin que Jasper recorte el glifo. -->
+            <element kind="textField" x="0" y="1" width="300" height="15" fontSize="10.0" forecolor="#4ADE80" vTextAlign="Middle">
+                <expression><![CDATA["█".repeat($F{nivelBarra} == null ? 0 : $F{nivelBarra})]]></expression>
             </element>
             <element kind="textField" x="4" y="0" width="292" height="17" fontSize="8.5" textAdjust="StretchHeight" vTextAlign="Middle">
                 <expression><![CDATA[$F{etiqueta}]]></expression>

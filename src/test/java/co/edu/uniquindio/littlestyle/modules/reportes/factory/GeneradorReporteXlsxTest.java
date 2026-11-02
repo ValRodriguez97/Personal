@@ -13,6 +13,8 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
@@ -84,6 +86,40 @@ class GeneradorReporteXlsxTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"=SUMA(A1)", "+1", "-2+3", "@cmd", "\tdato", "\rdato"})
+    void neutralizaCualquierInicioPeligrosoSinTocarLosNumeros(String peligroso) throws Exception {
+        try (Workbook libro = abrir(datosConTexto(peligroso, -5L, new BigDecimal("-1500.5")))) {
+            Sheet hoja = libro.getSheet("Datos");
+            assertThat(hoja.getRow(1).getCell(0).getStringCellValue()).isEqualTo("'" + peligroso);
+
+            Cell entero = hoja.getRow(1).getCell(1);
+            assertThat(entero.getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(entero.getNumericCellValue()).isEqualTo(-5d);
+
+            Cell moneda = hoja.getRow(1).getCell(2);
+            assertThat(moneda.getCellType()).isEqualTo(CellType.NUMERIC);
+            assertThat(moneda.getNumericCellValue()).isEqualTo(-1500.5d);
+        }
+    }
+
+    @Test
+    void elTextoNormalNoSeAltera() throws Exception {
+        try (Workbook libro = abrir(datosConTexto("Camisa estampada", 1L, BigDecimal.ONE))) {
+            assertThat(libro.getSheet("Datos").getRow(1).getCell(0).getStringCellValue())
+                    .isEqualTo("Camisa estampada");
+        }
+    }
+
+    @Test
+    void unEncabezadoQuePareceFormulaSeNeutraliza() throws Exception {
+        try (Workbook libro = abrir(
+                datosConTexto("dato", 1L, BigDecimal.ONE, "=Columna"))) {
+            assertThat(libro.getSheet("Datos").getRow(0).getCell(0).getStringCellValue())
+                    .isEqualTo("'=Columna");
+        }
+    }
+
     @Test
     void laHojaResumenReplicaTituloYParametros() throws Exception {
         try (Workbook libro = abrir()) {
@@ -96,7 +132,26 @@ class GeneradorReporteXlsxTest {
     }
 
     private Workbook abrir() throws Exception {
-        return new XSSFWorkbook(new ByteArrayInputStream(generador.generar(datos())));
+        return abrir(datos());
+    }
+
+    private Workbook abrir(ReporteDatos datos) throws Exception {
+        return new XSSFWorkbook(new ByteArrayInputStream(generador.generar(datos)));
+    }
+
+    private static ReporteDatos datosConTexto(String texto, Long entero, BigDecimal moneda) {
+        return datosConTexto(texto, entero, moneda, "Concepto");
+    }
+
+    private static ReporteDatos datosConTexto(String texto, Long entero, BigDecimal moneda,
+                                              String encabezado) {
+        TablaReporte tabla = new TablaReporte(
+                List.of(new ColumnaReporte(encabezado, TipoColumna.TEXTO),
+                        new ColumnaReporte("Cantidad", TipoColumna.ENTERO),
+                        new ColumnaReporte("Valor", TipoColumna.MONEDA)),
+                List.of(List.of(texto, entero, moneda)));
+        return new ReporteDatos(TipoReporte.VENTAS, "Reporte de ventas", "reporte-ventas",
+                Map.of("TITULO", "Reporte de ventas"), List.of(), tabla);
     }
 
     private static String textoDe(Sheet hoja) {

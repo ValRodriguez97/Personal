@@ -7,11 +7,20 @@ import java.time.LocalDateTime;
 /**
  * Reglas compartidas de los formatos interoperables (XLSX y CSV).
  *
- * <p>Los textos que empiezan por {@code = + - @} se neutralizan con una comilla simple para evitar
- * inyección de fórmulas al abrir el archivo en una hoja de cálculo. Los números y fechas se
+ * <p>Los textos que empiezan por un carácter peligroso se neutralizan con una comilla simple para
+ * evitar inyección de fórmulas al abrir el archivo en una hoja de cálculo. Los números y fechas se
  * serializan como valores crudos, nunca como cadenas con símbolos de moneda.</p>
  */
 final class ValoresReporte {
+
+    /**
+     * Caracteres que, al inicio de una celda, pueden abrir una fórmula o alterar la fila.
+     *
+     * <p>Guía OWASP «CSV Injection»: además de {@code = + - @}, un tabulador o un retorno de carro
+     * inicial permiten escapar de la celda y colar contenido ejecutable al abrir el archivo en una
+     * hoja de cálculo. Se neutralizan todos por igual.</p>
+     */
+    private static final String CARACTERES_PELIGROSOS = "=+-@\t\r";
 
     private ValoresReporte() {
     }
@@ -21,7 +30,7 @@ final class ValoresReporte {
         if (valor == null) {
             return "";
         }
-        if (!valor.isEmpty() && "=+-@".indexOf(valor.charAt(0)) >= 0) {
+        if (!valor.isEmpty() && CARACTERES_PELIGROSOS.indexOf(valor.charAt(0)) >= 0) {
             return "'" + valor;
         }
         return valor;

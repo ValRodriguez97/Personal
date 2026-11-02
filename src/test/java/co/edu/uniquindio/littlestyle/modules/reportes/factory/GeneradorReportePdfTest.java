@@ -78,6 +78,17 @@ class GeneradorReportePdfTest {
         }
     }
 
+    @Test
+    void laBarraDeVentasSeDibujaConBloquesSegunElNivel() throws Exception {
+        byte[] pdf = generador.generar(datos(TipoReporte.VENTAS, filas(TipoReporte.VENTAS, 11)));
+
+        try (PDDocument documento = Loader.loadPDF(pdf)) {
+            String texto = new PDFTextStripper().getText(documento);
+            assertThat(texto).contains("█".repeat(10));
+            assertThat(texto).contains("█".repeat(7));
+        }
+    }
+
     @ParameterizedTest
     @EnumSource(TipoReporte.class)
     void unReporteDe500FilasOcupaVariasPaginasYNumeraLaPrimera(TipoReporte tipo) throws Exception {

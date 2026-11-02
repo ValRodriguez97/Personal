@@ -16,6 +16,9 @@ cumpleRnf24 = tasa > 0.98
 
 Un `49 OK + 1 error = 0,98` **no cumple**. Hace falta un éxito adicional para superar el 98 %.
 
+Sin solicitudes registradas no hay tasa que comparar: el resumen queda en estado `SIN_DATOS`,
+`tasaExito` es `null` y `cumpleRnf24` es `false`. «No hay evidencia» nunca se reporta como «cumple».
+
 ## 2. Dos contadores, dos preguntas
 
 | Contador (Actuator) | Etiquetas | Valores de `resultado` | Pregunta que responde |
@@ -34,9 +37,9 @@ En `/actuator/metrics` los nombres se consultan con puntos, tal como se registra
 | `ok` (servidor) | Backend | Generó el archivo y respondió `200` | Sí, en el numerador |
 | `error` | Backend | Excepción interna o `BusinessException` `5xx` | Sí, en el denominador |
 | `rechazado` | Backend | Validación del solicitante (`4xx`: fechas, categoría, formato, demasiadas filas) | **No**: no es un fallo del sistema |
-| `ok` (cliente) | Navegador | Guardó, abrió o imprimió el archivo | Sí, en el numerador |
+| `ok` (cliente) | Navegador | Validó la firma del archivo y lo entregó al navegador (o abrió la impresión) | Sí, en el numerador |
 | `error_red` | Navegador | La petición nunca llegó al servidor (`status 0`) | Sí, en el denominador |
-| `blob_vacio` | Navegador | El servidor respondió `200` pero con un archivo de 0 bytes | Sí, en el denominador |
+| `blob_vacio` | Navegador | El servidor respondió `200` pero con un archivo de 0 bytes (o un CSV que solo trae el BOM) | Sí, en el denominador |
 | `error_cliente` | Navegador | `4xx/5xx`, archivo corrupto, permisos de descarga o fallo del navegador | Sí, en el denominador |
 | `cancelado` | Navegador | El usuario pulsó «Cancelar» | **No**: decisión del usuario |
 
@@ -49,15 +52,34 @@ umbral del requisito):
 tasaServidor = ok / (ok + error)
 ```
 
+### Qué significa `ok` en el cliente
+
+El navegador **no puede confirmar que el archivo se guardó en disco**: por seguridad no expone si el
+usuario aceptó la descarga, eligió carpeta o canceló el diálogo del sistema. Antes de reportar `ok`,
+el cliente comprueba que el blob recibido corresponde al formato pedido leyendo sus primeros bytes:
+
+| Formato | Firma esperada |
+|---|---|
+| `PDF` | `%PDF-` (`25 50 44 46 2D`) |
+| `XLSX` | `PK` (`50 4B`), porque todo OOXML es un ZIP |
+| `CSV` | Texto no vacío; se admite el BOM UTF-8 `EF BB BF` |
+
+Si la firma no coincide, el archivo no se entrega y se reporta `error_cliente` (o `blob_vacio` si no
+hay contenido). Por eso `ok` significa **«archivo íntegro validado y entregado al navegador»**, no
+«guardado en disco». El campo `motivo` de la telemetría deja el detalle trazable
+(`archivo_validado_entregado` para descarga, `archivo_validado_impreso` para impresión).
+
 Tasa de punta a punta (la que responde «¿el usuario obtuvo su archivo?»):
 
 ```text
 tasaCliente = ok / (ok + error_red + blob_vacio + error_cliente)
 ```
 
-Sin evidencia (`ok + error == 0`) se asume `tasaExito = 1.0` y `cumpleRnf24 = true` para no bloquear
-la entrega antes de la primera solicitud. Los rechazos y las cancelaciones **nunca** se suman al
-denominador del requisito.
+Si `ok + error == 0` la tasa del servidor no se calcula: se publica `tasaExito = null` con estado
+`SIN_DATOS` y `cumpleRnf24 = false`. Es una foto sin evidencia, no un cumplimiento. En cuanto existe
+al menos una solicitud, la tasa es `ok / (ok + error)` y el estado pasa a `CUMPLE` o `NO_CUMPLE`
+según el umbral estricto. Los rechazos y las cancelaciones **nunca** se suman al denominador del
+requisito.
 
 ## 4. Contrato del endpoint
 
@@ -69,14 +91,32 @@ denominador del requisito.
   "error": 1,
   "rechazado": 4,
   "tasaExito": 0.9917,
+  "estado": "CUMPLE",
   "cumpleRnf24": true,
   "desde": "2026-10-31T10:00:00Z"
 }
 ```
 
-- `tasaExito` está redondeada a 4 decimales y vive entre `0` y `1`.
+Sin solicitudes, la misma consulta responde:
+
+```json
+{
+  "ok": 0,
+  "error": 0,
+  "rechazado": 0,
+  "tasaExito": null,
+  "estado": "SIN_DATOS",
+  "cumpleRnf24": false,
+  "desde": "2026-10-31T10:00:00Z"
+}
+```
+
+- `estado` vale `CUMPLE`, `NO_CUMPLE` o `SIN_DATOS` y es la lectura directa para auditoría.
+- `tasaExito` está redondeada a 4 decimales, vive entre `0` y `1` y es `null` cuando no hay
+  evidencia (`SIN_DATOS`).
 - `desde` es el instante en que arrancó el proceso que tiene los contadores.
-- `cumpleRnf24` aplica `> 0.98` sobre `tasaExito` sin redondear.
+- `cumpleRnf24` aplica `> 0.98` sobre la tasa sin redondear; siempre es coherente con
+  `estado == "CUMPLE"`.
 - Los contadores son **en memoria**: se reinician con cada despliegue.
 
 ## 5. Consulta operativa con Actuator
@@ -189,7 +229,13 @@ curl -s -o /tmp/ventas.xlsx -H "Authorization: Bearer $TOKEN" \
    distorsionaría la métrica.
 6. **`desde` en la respuesta**: sin ese dato, un contador reiniciado parecía una caída de volumen.
    Con `desde` se distingue «no hubo solicitudes» de «el proceso acaba de arrancar».
-7. **Sin registro externo**: para el alcance de la US-16, Actuator y `/metricas/exito` cubren la
+7. **`SIN_DATOS` explícito**: con cero solicitudes la tasa no es `1.0`. Un auditor no puede aceptar
+   como evidencia un «cumple» que nadie ejercitó; el estado separa «sin datos» de «cumple» y la tasa
+   nula obliga a quien consuma el endpoint a tratar el caso.
+8. **`ok` del cliente no es «guardado en disco»**: el navegador no expone esa confirmación. Se
+   valida la firma del blob antes de entregarlo y se documenta lo que realmente se mide: archivo
+   íntegro entregado. Prometer más sería maquillar la métrica.
+9. **Sin registro externo**: para el alcance de la US-16, Actuator y `/metricas/exito` cubren la
    medición y la evidencia. No se agrega una dependencia de monitoreo que nadie va a consultar. Si
    más adelante se necesita histórico entre despliegues, se conecta un `MeterRegistry` persistente
    y se actualiza este documento.

@@ -97,8 +97,8 @@ public class ConstructorDatosReporte {
         for (DashboardVentasDiaResponse d : diarias) {
             Map<String, Object> m = new HashMap<>(fila(
                     "Ventas por día", d.fecha().format(FECHA), entero(d.pedidos()), moneda(d.total())));
-            // Ancho de la barra en 10 tramos (0-10): la plantilla dibuja rectángulos de 40 px
-            // por tramo, así el ancho total es proporcional al total del día.
+            // Ancho de la barra en 10 tramos (0-10): la plantilla repite un carácter de bloque
+            // U+2588 por tramo, así el ancho total es proporcional al total del día.
             long totalDia = d.total() == null ? 0L : d.total().longValue();
             m.put("nivelBarra", maximoDiario == 0 ? 0
                     : Math.max(0, Math.min(10, Math.round(10.0f * totalDia / maximoDiario))));

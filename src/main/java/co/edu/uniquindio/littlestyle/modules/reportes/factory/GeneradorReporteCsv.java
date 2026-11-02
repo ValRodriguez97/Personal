@@ -40,7 +40,7 @@ public class GeneradorReporteCsv implements GeneradorReporte {
             if (i > 0) {
                 csv.append(SEPARADOR);
             }
-            csv.append(escapar(columnas.get(i).nombre()));
+            csv.append(escapar(ValoresReporte.texto(columnas.get(i).nombre())));
         }
         csv.append(FIN_LINEA);
 

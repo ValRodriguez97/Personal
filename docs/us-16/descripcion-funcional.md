@@ -109,14 +109,16 @@ Solo `ADMINISTRADOR`:
   "error": 1,
   "rechazado": 4,
   "tasaExito": 0.9917,
+  "estado": "CUMPLE",
   "cumpleRnf24": true,
   "desde": "2026-10-31T10:00:00Z"
 }
 ```
 
-`cumpleRnf24` es `tasaExito > 0.98` (estricto). `desde` permite distinguir «no hubo solicitudes» de
-«el proceso acaba de arrancar». El detalle de contadores, fórmulas y consultas de Actuator está en
-[`metricas-rnf24.md`](metricas-rnf24.md).
+`cumpleRnf24` es `tasaExito > 0.98` (estricto) y siempre coincide con `estado == "CUMPLE"`. Sin
+solicitudes, `estado` es `SIN_DATOS`, `tasaExito` es `null` y `cumpleRnf24` es `false`. `desde`
+permite distinguir «no hubo solicitudes» de «el proceso acaba de arrancar». El detalle de contadores,
+fórmulas y consultas de Actuator está en [`metricas-rnf24.md`](metricas-rnf24.md).
 
 ## 6. Registro de búsquedas
 
@@ -191,9 +193,12 @@ Evidencia operativa:
    cuatro plantillas con un programa de prueba.
    `style` como atributo de referencia sí existe; `<printWhenExpression>` debe seguir siendo un
    elemento hijo.
-2. **Barras de ventas sin módulo de gráficos.** Para no depender de JFreeChart/Java 25 se dibujan
-   10 rectángulos cuantizados con `printWhenExpression` sobre `nivelBarra` (0–10), calculado en
-   `ConstructorDatosReporte`. El resultado es proporcional y liviano.
+2. **Barras de ventas sin módulo de gráficos.** Para no depender de JFreeChart/Java 25 se repite el
+   carácter de bloque `U+2588` tantas veces como indique `nivelBarra` (0–10), calculado en
+   `ConstructorDatosReporte`. Un único `textField` reemplaza los diez rectángulos con
+   `printWhenExpression`: el resultado sigue siendo proporcional, liviano y mucho más fácil de
+   mantener. Se comprobó que el glifo existe en la DejaVu Sans embebida y que el texto se extrae
+   del PDF.
 3. **Pie “Página X de Y”.** Se implementó con dos campos de texto adyacentes: uno con
    `$V{PAGE_NUMBER}` y otro con `evaluationTime="Report"` para el total. JasperReports no ofrece una
    variable única “actual de total” en esta versión.
@@ -202,14 +207,17 @@ Evidencia operativa:
    categoría él vende: es la señal accionable de demanda insatisfecha. El administrador ve el
    consolidado completo.
 5. **Métrica de punta a punta.** El servidor no puede saber si un PDF con `200` se abrió mal en el
-   equipo del usuario; por eso el navegador reporta el desenlace real en su propio contador. El
-   umbral del requisito es estrictamente `> 0.98`: un `49/50 = 0,98` no cumple. Sin evidencia
-   (`ok + error == 0`) se asume cumplimiento para no bloquear la entrega.
+   equipo del usuario; por eso el navegador valida la firma del blob y reporta el desenlace real en
+   su propio contador. El umbral del requisito es estrictamente `> 0.98`: un `49/50 = 0,98` no
+   cumple. Sin evidencia (`ok + error == 0`) el estado es `SIN_DATOS`, la tasa es `null` y no se
+   declara cumplimiento.
 6. **CSV para Excel en español.** BOM UTF-8 (tildes y eñes), separador `;`, fin de línea CRLF y
    escape RFC 4180. Los valores viajan crudos (decimales con punto, fechas ISO, sin símbolo de
    moneda) para que sean interoperables; el formato “COP $” queda solo en el PDF.
-7. **Inyección de fórmulas.** En XLSX y CSV, todo texto que empiece por `=`, `+`, `-` o `@` se
-   neutraliza con un apóstrofo antes de escribirlo.
+7. **Inyección de fórmulas.** En XLSX y CSV, todo texto (valores, encabezados y títulos) que empiece
+   por `=`, `+`, `-`, `@`, tabulador (`\t`) o retorno de carro (`\r`) se neutraliza con un apóstrofo
+   antes de escribirlo, siguiendo la guía OWASP «CSV Injection». Las columnas numéricas
+   (`ENTERO`, `MONEDA`, `FECHA`) se escriben crudas y tipadas para no romper las sumas.
 8. **Inventario sin fechas.** Es una foto del estado actual; los parámetros de fecha se ignoran a
    propósito y el nombre del archivo usa la fecha de generación.
 9. **Límite de 5 000 filas.** No viene de la historia: se fijó para proteger memoria y tiempos de

@@ -369,7 +369,14 @@ export class ExportarReporte implements OnDestroy {
                 'No se pudo abrir la impresión',
               );
             } else {
-              this.reportes.reportarExportacion(this.tipo(), this.formato(), 'OK');
+              // El motivo deja rastro de qué significa "OK": archivo validado y entregado, no
+              // confirmación de guardado en disco (el navegador no expone ese dato).
+              this.reportes.reportarExportacion(
+                this.tipo(),
+                this.formato(),
+                'OK',
+                'archivo_validado_impreso',
+              );
             }
             this.exito.set(
               resultado === 'impreso'
@@ -380,7 +387,12 @@ export class ExportarReporte implements OnDestroy {
             );
           } else {
             this.reportes.descargar(estado.archivo);
-            this.reportes.reportarExportacion(this.tipo(), this.formato(), 'OK');
+            this.reportes.reportarExportacion(
+              this.tipo(),
+              this.formato(),
+              'OK',
+              'archivo_validado_entregado',
+            );
             this.exito.set(`Reporte ${this.formato()} descargado: ${estado.archivo.nombre}`);
           }
         } catch {

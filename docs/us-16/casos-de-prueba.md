@@ -33,6 +33,7 @@ no se distorsiona con errores del usuario.
   - las tildes y eñes se conservan;
   - el texto contiene el título del reporte, «Camisa niña ñandú» y «Categoría»;
   - con 500 filas hay más de una página y el pie dice «Página 1 de N» con el N real;
+  - la barra de participación se dibuja repitiendo el bloque `█` según `nivelBarra` (0–10);
   - todas las fuentes que usa el PDF están embebidas.
 - Evidencia: `GeneradorReportePdfTest` (`@EnumSource(TipoReporte.class)`,
   `elTextoEsExtraibleYLasFuentesEstanEmbebidas` y
@@ -48,7 +49,9 @@ no se distorsiona con errores del usuario.
     textos son texto;
   - la hoja `Resumen` replica título, subtítulo, alcance, autor, fecha y totales;
   - la hoja `Datos` tiene panel congelado en la fila de encabezados y autofiltro sobre el rango;
-  - un texto que empieza por `=` se escribe neutralizado con apóstrofo.
+  - todo texto, encabezado o título que empieza por `=`, `+`, `-`, `@`, tabulador o retorno de carro
+    se escribe neutralizado con apóstrofo;
+  - los enteros y montos negativos siguen siendo celdas numéricas, sin apóstrofo.
 - Evidencia: `GeneradorReporteXlsxTest` (`laHojaDatosTienePanelCongeladoYAutofiltro`).
 
 ### CP-03 — CSV para Excel en configuración regional colombiana
@@ -60,7 +63,8 @@ no se distorsiona con errores del usuario.
   - valores crudos: decimales con punto, fechas ISO, sin “COP $”;
   - campos con separador, comilla o salto de línea entre comillas dobles y comillas duplicadas
     (RFC 4180);
-  - fórmulas neutralizadas.
+  - fórmulas neutralizadas también cuando el texto empieza por tabulador o retorno de carro;
+  - un monto o entero negativo viaja sin apóstrofo para no perder el tipo.
 - Evidencia: `GeneradorReporteCsvTest`.
 
 ### CP-04 — Factory Method sin `switch` por formato
@@ -126,14 +130,16 @@ no se distorsiona con errores del usuario.
 - Entrada: combinaciones de exportaciones del servidor, telemetría del cliente, rechazos,
   cancelaciones y ráfagas de eventos.
 - Resultado esperado:
-  - sin evidencia, `tasaExito = 1.0` y `cumpleRnf24 = true`;
-  - una exportación exitosa mantiene la tasa en 1.0;
+  - sin evidencia, `estado = SIN_DATOS`, `tasaExito = null` y `cumpleRnf24 = false`;
+  - `50 OK + 0 error` y `99 OK + 1 error` dan `estado = CUMPLE`;
   - los `rechazado` (`4xx`) no entran en el denominador; los `error` (`5xx`) sí;
-  - `49/50 = 0,98` da `cumpleRnf24 = false`; un éxito adicional lo pone en `true`;
+  - `49/50 = 0,98` da `estado = NO_CUMPLE` y `cumpleRnf24 = false`; un éxito adicional los pone en
+    `CUMPLE` y `true`;
   - la telemetría usa `reporte_exportaciones_cliente_total` y no altera la tasa del servidor;
   - la cancelación se cuenta pero queda fuera del denominador;
   - más de 30 eventos por usuario y minuto devuelve `429`;
-  - el endpoint devuelve `ok`, `error`, `rechazado`, `tasaExito`, `cumpleRnf24` y `desde`.
+  - el endpoint devuelve `ok`, `error`, `rechazado`, `tasaExito` (o `null`), `estado`,
+    `cumpleRnf24` y `desde`.
 - Evidencia: `ReporteMetricasTest`, `ReporteServiceTest`
   (`unErrorDeNegocioConEstado5xxSiRestaEnLaTasa`) y `ReporteControllerSecurityTest`.
 - Detalle: [`metricas-rnf24.md`](metricas-rnf24.md).
@@ -149,6 +155,12 @@ no se distorsiona con errores del usuario.
   - se envía el formato elegido en el query param y se usan las fechas/categoría del dashboard;
   - el progreso es real con `Content-Length` e indeterminado sin él;
   - el nombre por defecto usa la extensión del formato;
+  - antes de entregar el archivo se valida la firma del blob: `%PDF-` para PDF, `PK` para XLSX y
+    texto no vacío (con BOM opcional) para CSV; un HTML o JSON de error disfrazado no se descarga y
+    se reporta `error_cliente`;
+  - `ok` se reporta solo tras validar y entregar el archivo, con motivo
+    `archivo_validado_entregado` (o `archivo_validado_impreso` al imprimir); no afirma que se guardó
+    en disco;
   - un `400` muestra el mensaje del backend y un `500` un mensaje genérico;
   - la telemetría se envía en éxito, error, red, archivo vacío y cancelación, con minúsculas en el
     cuerpo; un fallo al enviarla no rompe la descarga;
@@ -188,7 +200,7 @@ no se distorsiona con errores del usuario.
 | Backend — contrato | MockMvc / Security Test | `ReporteControllerTest`, `ReporteControllerSecurityTest` |
 | Backend — métrica | Micrometer `SimpleMeterRegistry` | `ReporteMetricasTest`, `ReporteServiceTest` |
 | Backend — repositorio | `@DataJpaTest` + H2 | `ReporteBusquedaRepositoryTest` |
-| Frontend | Vitest + Angular Testing | `exportar-reporte.spec.ts`, `reportes.service.spec.ts` |
+| Frontend | Vitest + Angular Testing | `exportar-reporte.spec.ts`, `reportes.service.spec.ts` (firmas de blob) |
 | Interoperabilidad | Excel, LibreOffice y visor de PDF | Pruebas manuales de la sección 4 |
 
 ## 6. Criterios de aceptación

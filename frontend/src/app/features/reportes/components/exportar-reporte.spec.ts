@@ -101,7 +101,12 @@ describe('ExportarReporte (US-16)', () => {
 
     expect(exportar).toHaveBeenCalledWith('ventas', {}, 'PDF');
     expect(descargar).toHaveBeenCalledWith(archivo);
-    expect(reportarExportacion).toHaveBeenCalledWith('ventas', 'PDF', 'OK');
+    expect(reportarExportacion).toHaveBeenCalledWith(
+      'ventas',
+      'PDF',
+      'OK',
+      'archivo_validado_entregado',
+    );
     expect(componente.exito()).toContain('Reporte PDF descargado');
   });
 
@@ -136,7 +141,12 @@ describe('ExportarReporte (US-16)', () => {
 
     expect(imprimir).toHaveBeenCalledWith(archivo, null);
     expect(fixture.componentInstance.exito()).toContain('diálogo de impresión');
-    expect(reportarExportacion).toHaveBeenCalledWith('ventas', 'PDF', 'OK');
+    expect(reportarExportacion).toHaveBeenCalledWith(
+      'ventas',
+      'PDF',
+      'OK',
+      'archivo_validado_impreso',
+    );
   });
 
   it('usa la pestaña de respaldo cuando el iframe no puede imprimir', async () => {

@@ -6,6 +6,8 @@ import co.edu.uniquindio.littlestyle.modules.reportes.dto.TablaReporte;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.TipoColumna;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.TipoReporte;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -53,8 +55,49 @@ class GeneradorReporteCsvTest {
         assertThat(texto()).contains(";'=SUMA(A1:A2);");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"=SUMA(A1)", "+1", "-2+3", "@cmd", "\tdato", "\rdato"})
+    void neutralizaCualquierInicioPeligroso(String peligroso) {
+        String csv = textoDe(datosConTexto(peligroso, -5L, new BigDecimal("-1500.5"), "Concepto"));
+        assertThat(csv).contains(GeneradorReporteCsv.escapar("'" + peligroso));
+    }
+
+    @Test
+    void elTextoNormalNoSeAltera() {
+        assertThat(textoDe(datosConTexto("Camisa estampada", 1L, BigDecimal.ONE, "Concepto")))
+                .contains("Camisa estampada;1;1");
+    }
+
+    @Test
+    void elNumeroNegativoNoRecibeApostrofo() {
+        String csv = textoDe(datosConTexto("dato", -5L, new BigDecimal("-1500.5"), "Concepto"));
+        assertThat(csv).contains(";-5;-1500.5");
+        assertThat(csv).doesNotContain("'-5");
+    }
+
+    @Test
+    void unEncabezadoQuePareceFormulaSeNeutraliza() {
+        String csv = textoDe(datosConTexto("dato", 1L, BigDecimal.ONE, "=Columna"));
+        assertThat(csv).startsWith("'=Columna;");
+    }
+
     private String texto() {
-        return new String(generador.generar(datos()), StandardCharsets.UTF_8).substring(1);
+        return textoDe(datos());
+    }
+
+    private String textoDe(ReporteDatos datos) {
+        return new String(generador.generar(datos), StandardCharsets.UTF_8).substring(1);
+    }
+
+    private static ReporteDatos datosConTexto(String texto, Long entero, BigDecimal moneda,
+                                              String encabezado) {
+        TablaReporte tabla = new TablaReporte(
+                List.of(new ColumnaReporte(encabezado, TipoColumna.TEXTO),
+                        new ColumnaReporte("Cantidad", TipoColumna.ENTERO),
+                        new ColumnaReporte("Valor", TipoColumna.MONEDA)),
+                List.of(List.of(texto, entero, moneda)));
+        return new ReporteDatos(TipoReporte.VENTAS, "Reporte de ventas", "reporte-ventas",
+                Map.of("TITULO", "Reporte de ventas"), List.of(), tabla);
     }
 
     private static ReporteDatos datos() {

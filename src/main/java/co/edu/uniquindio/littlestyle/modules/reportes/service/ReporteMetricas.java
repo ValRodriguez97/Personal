@@ -1,5 +1,6 @@
 package co.edu.uniquindio.littlestyle.modules.reportes.service;
 
+import co.edu.uniquindio.littlestyle.modules.reportes.dto.EstadoRnf24;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.FormatoReporte;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.MetricaExitoResponse;
 import co.edu.uniquindio.littlestyle.modules.reportes.dto.ResultadoExportacion;
@@ -34,6 +35,10 @@ import java.util.concurrent.TimeUnit;
  * La tasa del servidor es {@code ok / (ok + error)} y cumple solo cuando es estrictamente mayor que
  * 0.98. La tasa de punta a punta se calcula con el contador del cliente:
  * {@code ok / (ok + error_red + blob_vacio + error_cliente)}.</p>
+ *
+ * <p>Cuando todavía no hay evidencia ({@code ok + error == 0}) el resumen queda en
+ * {@link EstadoRnf24#SIN_DATOS} con tasa nula y sin cumplimiento: reportar 1.0 haría pasar por
+ * «cumple» un requisito que nadie ha ejercitado.</p>
  *
  * <p>Los contadores viven en memoria del proceso y se reinician con cada despliegue. Para histórico
  * se debe consultar {@code /actuator/metrics} o conectar un registro persistente; el endpoint
@@ -86,17 +91,23 @@ public class ReporteMetricas {
     }
 
     /**
-     * Tasa del servidor. Sin evidencia se asume cumplimiento para no bloquear la entrega; el
-     * umbral es estrictamente mayor que 0.98.
+     * Tasa del servidor. Sin evidencia ({@code ok + error == 0}) el estado es
+     * {@link EstadoRnf24#SIN_DATOS}, la tasa es {@code null} y no se declara cumplimiento. Con
+     * evidencia, el umbral es estrictamente mayor que 0.98.
      */
     public MetricaExitoResponse resumen() {
         long ok = contarResultado("ok");
         long error = contarResultado("error");
         long rechazado = contarResultado("rechazado");
         long total = ok + error;
-        double tasa = total == 0 ? 1.0 : (double) ok / total;
-        return new MetricaExitoResponse(ok, error, rechazado, redondear(tasa),
-                total == 0 || tasa > UMBRAL_RNF24, desde);
+        if (total == 0) {
+            return new MetricaExitoResponse(ok, error, rechazado, null,
+                    EstadoRnf24.SIN_DATOS, false, desde);
+        }
+        double tasa = (double) ok / total;
+        EstadoRnf24 estado = tasa > UMBRAL_RNF24 ? EstadoRnf24.CUMPLE : EstadoRnf24.NO_CUMPLE;
+        return new MetricaExitoResponse(ok, error, rechazado, redondear(tasa), estado,
+                estado == EstadoRnf24.CUMPLE, desde);
     }
 
     private void contar(String resultado, TipoReporte tipo, FormatoReporte formato) {
